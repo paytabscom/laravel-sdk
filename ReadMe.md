@@ -2,6 +2,8 @@
 
 Official PayTabs Laravel SDK for Payment Gateway integrations. This package provides a Laravel-friendly wrapper around the PayTabs PHP SDK, making it easy to integrate PayTabs payment services into your Laravel application.
 
+[PayTabs PHP SDK](https://github.com/paytabscom/php-sdk)
+
 ## Features
 
 - **Seamless Laravel Integration**: Built as a proper Laravel package with Service Provider and Facade support
@@ -149,6 +151,8 @@ The package configuration file `config/paytabs.php` includes the following optio
 | `ipn_idempotency_key_prefix` | Cache key prefix | `paytabs:ipn` |
 | `ipn_idempotency_ttl_seconds` | Idempotency lock TTL | `180` |
 | `ack_on_handler_exception` | Acknowledge IPN even if handler fails | `true` |
+| `ipn_time_guard_enabled` | Enable transaction time Guard | `true` |
+| `ipn_time_guard_ttl_seconds` | Transaction time guard TTL (seconds) | `3600` |
 
 ## Using Multiple Profiles
 
