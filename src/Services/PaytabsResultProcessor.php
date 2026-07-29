@@ -19,8 +19,6 @@ use Paytabs\Sdk\Response\Responses\Webhook\TransactionResult\BrowserAsPost;
 use Paytabs\Sdk\Response\Responses\Webhook\TransactionResult\Callback;
 use Throwable;
 
-use function Illuminate\Support\now;
-
 class PaytabsResultProcessor
 {
     /**
