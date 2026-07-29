@@ -1,0 +1,38 @@
+{
+    "name": "paytabs/laravel-sdk",
+    "description": "Official PayTabs Laravel SDK for Payment Gateway integrations",
+    "type": "library",
+    "require": {
+        "php": "^8.1",
+        "paytabs/php-sdk": "^3.2",
+        "illuminate/support": "^13.19"
+    },
+    "autoload": {
+        "psr-4": {
+            "Paytabs\\Laravel\\": "src/"
+        }
+    },
+    "extra": {
+        "laravel": {
+            "providers": [
+                "Paytabs\\Laravel\\PaytabsServiceProvider"
+            ],
+            "aliases": {
+                "PaytabsLaravel": "Paytabs\\Laravel\\Facades\\Paytabs"
+            }
+        }
+    },
+    "require-dev": {
+        "larastan/larastan": "^3.9",
+        "laravel/pint": "^1.29",
+        "phpunit/phpunit": "^11",
+        "illuminate/config": "^13.19",
+        "illuminate/log": "^13.19",
+        "illuminate/routing": "^13.19"
+    },
+    "scripts": {
+        "analyse": "phpstan analyse",
+        "format": "pint",
+        "format:test": "pint --test"
+    }
+}
