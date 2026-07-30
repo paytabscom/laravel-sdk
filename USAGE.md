@@ -2,10 +2,13 @@
 
 This guide provides comprehensive examples and patterns for using the PayTabs Laravel SDK in your application.
 
-##
+## Samples
 
-Refer to the original samples from the core PayTabs PHP SDK:
+Original samples from the core PayTabs PHP SDK:
 [PHP SDK samples](https://github.com/paytabscom/php-sdk/tree/main/Samples)
+
+A complete Laravel Sample App:
+[Laravel SDK Sample App](https://github.com/paytabscom/laravel-sdk-sample)
 
 ## Table of Contents
 
