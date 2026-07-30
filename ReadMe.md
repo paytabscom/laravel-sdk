@@ -49,7 +49,7 @@ PAYTABS_SERVER_KEY=your_server_key
 ### 2. Create a Payment Request
 
 ```php
-use Paytabs\Laravel\Paytabs;
+use Paytabs\Laravel\Facades\Paytabs;
 use Paytabs\Sdk\Enums\TranClass;
 use Paytabs\Sdk\Enums\TranType;
 use Paytabs\Sdk\Request\Payload\PayloadsFactory;
@@ -159,7 +159,7 @@ The package configuration file `config/paytabs.php` includes the following optio
 If you need to use different PayTabs profiles for different transactions:
 
 ```php
-use Paytabs\Laravel\Paytabs;
+use Paytabs\Laravel\Facades\Paytabs;
 use Paytabs\Sdk\Profile\Endpoints\Jordan;
 use Paytabs\Sdk\Profile\ProfilesFactory;
 use Paytabs\Sdk\Profile\EndpointsFactory;

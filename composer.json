@@ -2,6 +2,15 @@
     "name": "paytabs/laravel-sdk",
     "description": "Official PayTabs Laravel SDK for Payment Gateway integrations",
     "type": "library",
+    "license": "proprietary",
+    "keywords": [
+        "paytabs",
+        "payment",
+        "gateway",
+        "sdk",
+        "php",
+        "laravel"
+    ],
     "require": {
         "php": "^8.1",
         "paytabs/php-sdk": "^3.2",

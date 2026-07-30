@@ -156,7 +156,7 @@ Add your handler to `config/paytabs.php`:
 namespace App\Services;
 
 use Illuminate\Support\Facades\Log;
-use Paytabs\Laravel\Paytabs;
+use Paytabs\Laravel\Facades\Paytabs;
 use Paytabs\Sdk\Enums\TranStatus;
 use Paytabs\Sdk\Enums\TranType;
 use Paytabs\Sdk\Exceptions\InvalidSignatureException;
@@ -219,7 +219,7 @@ namespace App\Services;
 
 use Illuminate\Support\Facades\Log;
 use Paytabs\Laravel\Exceptions\IdempotencyException;
-use Paytabs\Laravel\Paytabs;
+use Paytabs\Laravel\Facades\Paytabs;
 use Paytabs\Sdk\Enums\TranStatus;
 use Paytabs\Sdk\Enums\TranType;
 use Paytabs\Sdk\Exceptions\InvalidSignatureException;
@@ -353,6 +353,52 @@ $this->app->bind(
     DatabaseIdempotencyGuard::class
 );
 ```
+
+## Time Guard Configuration
+
+### What is Time Guard?
+
+Time Guard is a security feature that prevents replay attacks by rejecting IPNs that are older than a configured TTL. This protects against delayed or replayed IPN deliveries that could be used to manipulate payment status.
+
+### Default Configuration
+
+```php
+'ipn_time_guard_enabled' => true,
+'ipn_time_guard_ttl_seconds' => 3600, // 1 hour
+```
+
+### How It Works
+
+When enabled, the time guard checks the `transaction_time` from the IPN payload against the current server time. If the IPN is older than the configured TTL, it is rejected with a warning log entry.
+
+### Custom TTL
+
+Adjust the time guard TTL based on your requirements:
+
+```php
+'ipn_time_guard_ttl_seconds' => 1800, // 30 minutes
+```
+
+### Disable Time Guard
+
+If you need to process older IPNs (not recommended for production):
+
+```php
+'ipn_time_guard_enabled' => false,
+```
+
+### Use Cases
+
+- **Prevent Replay Attacks**: Reject IPNs that are too old to be legitimate
+- **Handle Network Delays**: Set appropriate TTL to account for temporary network issues
+- **Compliance**: Meet security requirements for payment processing
+
+### Best Practices
+
+- Set TTL based on your business requirements and PayTabs retry policies
+- Monitor logs for rejected IPNs to identify potential issues
+- Keep time guard enabled in production for security
+- Consider network latency when setting TTL values
 
 ## Profile Resolver Usage
 

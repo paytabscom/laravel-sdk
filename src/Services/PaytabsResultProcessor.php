@@ -124,13 +124,19 @@ class PaytabsResultProcessor
     private function getTransactionResult(
         AbstractTransactionResult $transactionResult,
     ): Browser|Ipn {
+        $payload = $transactionResult->getPayload();
+
+        if ($payload === null) {
+            throw new \RuntimeException('Failed to map payload from transaction result.');
+        }
+
         /** @var Ipn|Browser $mappedPayload */
-        $mappedPayload = $transactionResult->getPayload()->getMapped();
+        $mappedPayload = $payload->getMapped();
 
         $resolvedProfile =
             $this->profile ??
             PaytabsResolver::resolveProfile($this->container, $mappedPayload) ??
-            Paytabs::getProfile();
+            $this->container->make(Paytabs::class)->getProfile();
 
         $transactionResult->setProfile($resolvedProfile);
 

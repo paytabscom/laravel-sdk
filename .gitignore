@@ -1,3 +1,30 @@
 vendor
-.vscode
 composer.lock
+
+# PHP CS Fixer
+.php-cs-fixer.*
+.php-cs-fixer.cache
+
+# PHPUnit
+.phpunit.result.cache
+.phpunit.cache
+
+# PHPStan
+.phpstan.cache
+phpstan.neon.dist
+
+# Environment
+.env
+.env.*
+!.env.example
+
+# IDE
+.vscode
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
