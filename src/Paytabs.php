@@ -18,9 +18,9 @@ use Paytabs\Sdk\Response\ResponseDirectInterface;
 
 class Paytabs
 {
-    public const VERSION = '2.0.1';
+    public const VERSION = '2.0.2';
 
-    private static ?PaytabsSdk $instance = null;
+    private ?PaytabsSdk $instance = null;
 
     /**
      * Get the PayTabs SDK instance using default configuration.
@@ -29,19 +29,19 @@ class Paytabs
      *
      * @throws InvalidConfigurationException If required configuration is missing
      */
-    public static function getInstance(): PaytabsSdk
+    public function getInstance(): PaytabsSdk
     {
-        if (self::$instance !== null) {
-            return self::$instance;
+        if ($this->instance !== null) {
+            return $this->instance;
         }
 
-        self::validateConfig();
+        $this->validateConfig();
 
         $endpoint = Config::get('paytabs.endpoint');
         $profileId = (int) Config::get('paytabs.profile_id');
         $serverKey = Config::get('paytabs.server_key');
 
-        return self::usingCredentials($profileId, $serverKey, $endpoint);
+        return $this->usingCredentials($profileId, $serverKey, $endpoint);
     }
 
     /**
@@ -49,11 +49,11 @@ class Paytabs
      *
      * @return PaytabsSdk The SDK instance with default config
      */
-    public static function usingDefaults(): PaytabsSdk
+    public function usingDefaults(): PaytabsSdk
     {
-        self::$instance = null;
+        $this->instance = null;
 
-        return self::getInstance();
+        return $this->getInstance();
     }
 
     /**
@@ -64,7 +64,7 @@ class Paytabs
      * @param  AbstractEndpoint|string  $endpoint  The endpoint region or code
      * @return PaytabsSdk The SDK instance
      */
-    public static function usingCredentials(
+    public function usingCredentials(
         int $profileId,
         string $serverKey,
         AbstractEndpoint|string $endpoint,
@@ -75,7 +75,7 @@ class Paytabs
             $serverKey,
         );
 
-        return self::usingProfile($profile);
+        return $this->usingProfile($profile);
     }
 
     /**
@@ -84,11 +84,11 @@ class Paytabs
      * @param  Profile  $profile  The PayTabs profile
      * @return PaytabsSdk The SDK instance
      */
-    public static function usingProfile(Profile $profile): PaytabsSdk
+    public function usingProfile(Profile $profile): PaytabsSdk
     {
-        self::$instance = PaytabsSdk::getInstance($profile);
+        $this->instance = PaytabsSdk::getInstance($profile);
 
-        return self::$instance;
+        return $this->instance;
     }
 
     /**
@@ -96,9 +96,9 @@ class Paytabs
      *
      * @return Profile The current profile
      */
-    public static function getProfile(): Profile
+    public function getProfile(): Profile
     {
-        return self::getInstance()->getProfile();
+        return $this->getInstance()->getProfile();
     }
 
     /**
@@ -107,7 +107,7 @@ class Paytabs
      * @param  Profile|null  $profile  Optional profile for validation
      * @return PaytabsResultProcessor The result processor instance
      */
-    public static function getResultProcessor(?Profile $profile = null): PaytabsResultProcessor
+    public function getResultProcessor(?Profile $profile = null): PaytabsResultProcessor
     {
         return App::make(
             PaytabsResultProcessor::class,
@@ -121,11 +121,11 @@ class Paytabs
      * @param  AbstractRequest  $request  The payment request
      * @return ResponseDirectInterface The response from PayTabs
      */
-    public static function submitRequest(AbstractRequest $request): ResponseDirectInterface
+    public function submitRequest(AbstractRequest $request): ResponseDirectInterface
     {
-        self::setRequest($request);
+        $this->setRequest($request);
 
-        return self::submit();
+        return $this->submit();
     }
 
     /**
@@ -134,11 +134,11 @@ class Paytabs
      * @param  AbstractRequest  $request  The payment request
      * @return PaytabsSdk The SDK instance
      */
-    private static function setRequest(AbstractRequest $request): PaytabsSdk
+    private function setRequest(AbstractRequest $request): PaytabsSdk
     {
-        self::prepareRequest($request);
+        $this->prepareRequest($request);
 
-        return self::getInstance()->setRequest($request);
+        return $this->getInstance()->setRequest($request);
     }
 
     /**
@@ -146,9 +146,9 @@ class Paytabs
      *
      * @return ResponseDirectInterface The response from PayTabs
      */
-    private static function submit(): ResponseDirectInterface
+    private function submit(): ResponseDirectInterface
     {
-        return self::getInstance()->submit();
+        return $this->getInstance()->submit();
     }
 
     /*
@@ -162,7 +162,7 @@ class Paytabs
      *
      * @param  AbstractRequest  $request  The payment request to prepare
      */
-    private static function prepareRequest(AbstractRequest $request): void
+    private function prepareRequest(AbstractRequest $request): void
     {
         $builder = $request->getPayloadObject();
         $payload = $builder->getPayload();
@@ -181,7 +181,7 @@ class Paytabs
      *
      * @throws \RuntimeException If required configuration is missing
      */
-    private static function validateConfig(): void
+    private function validateConfig(): void
     {
         $endpoint = Config::get('paytabs.endpoint');
         $profileId = Config::get('paytabs.profile_id');

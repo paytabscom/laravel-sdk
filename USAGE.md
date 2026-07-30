@@ -25,7 +25,7 @@ A complete Laravel Sample App:
 The most common use case is creating a hosted payment page where customers are redirected to PayTabs to complete payment.
 
 ```php
-use Paytabs\Laravel\Paytabs;
+use Paytabs\Laravel\Facades\Paytabs;
 use Paytabs\Sdk\Enums\TranClass;
 use Paytabs\Sdk\Enums\TranType;
 use Paytabs\Sdk\Request\Payload\PayloadsFactory;
@@ -112,7 +112,7 @@ $payload->buildPaypageConfig(Language::Arabic, 'USD', $themeId)
 
 ```php
 
-use Paytabs\Laravel\Paytabs;
+use Paytabs\Laravel\Facades\Paytabs;
 use Paytabs\Sdk\Response\Payload\PayloadInterface;
 use Paytabs\Sdk\Response\Payload\Payloads\Payment\Completed;
 use Paytabs\Sdk\Response\ResponseDirectInterface;
