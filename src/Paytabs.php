@@ -18,7 +18,7 @@ use Paytabs\Sdk\Response\ResponseDirectInterface;
 
 class Paytabs
 {
-    public const VERSION = '2.0.0';
+    public const VERSION = '2.0.1';
 
     private static ?PaytabsSdk $instance = null;
 
