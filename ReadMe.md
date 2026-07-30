@@ -192,7 +192,7 @@ Paytabs::usingDefaults();
 
 For issues and questions:
 - GitHub Issues: [PayTabs Laravel SDK](https://github.com/paytabscom/laravel-sdk)
-- PayTabs PHP SDK Documentation (Chat mode): [![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/paytabscom/php-sdk)
+- PayTabs PHP SDK Documentation (Chat mode): [![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/paytabscom/laravel-sdk)
 - PayTabs Official Documentation: [PayTabs Docs](https://docs.paytabs.com/)
 
 ## License
