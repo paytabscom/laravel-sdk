@@ -14,7 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Static analysis support (Larastan) with `phpstan analyse` script
 - Code formatting support (Laravel Pint) with `pint` script
 - Development dependencies: larastan/larastan, laravel/pint, phpunit/phpunit
-- Complete documentation: README.md, INSTALLATION.md, USAGE.md, IPN_HANDLING.md
+- Complete documentation: ReadMe.md, INSTALLATION.md, USAGE.md, IPN_HANDLING.md
 
 ### Changed
 - Refactored `Paytabs` class from static methods to instance methods for proper Laravel Facade support
@@ -28,7 +28,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Configuration validation now throws SDK exceptions for missing required config values
 
 ### Documentation
-- Added comprehensive README.md with quick start guide
+- Added comprehensive ReadMe.md with quick start guide
 - Added detailed INSTALLATION.md with troubleshooting section
 - Added USAGE.md with extensive code examples
 - Added IPN_HANDLING.md with security best practices

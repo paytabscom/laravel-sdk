@@ -84,7 +84,7 @@ $shipping = ShippingDetails::init('Fname Lname', '+971500000000', 'shipping@exam
 $shipping = ShippingDetails::init()->copyFrom($billing);
 
 // Hide the Shipping section in the payment page unless essential details are required
-$payload->buildHideShipping(true)
+$payload->buildHideShipping(true);
 ```
 
 ### Adding Frame Options
@@ -343,7 +343,7 @@ $payload = PayloadsFactory::createTransactionQuery();
 $payload->buildTransactionRef('transaction_reference_here');
 
 $request = RequestsFactory::createTransactionQuery($payload);
-$response = Paytabs::submitRequest($request);
+$ptResponse = Paytabs::submitRequest($request);
 
 if ($ptResponse->isFailure()) {
     return back()
@@ -370,7 +370,7 @@ $payload
     ->buildTransactionRef('tran-ref-to-refund');
 
 $request = RequestsFactory::createPaymentRequest($payload);
-$response = Paytabs::submitRequest($request);
+$ptResponse = Paytabs::submitRequest($request);
 
 if ($ptResponse->isFailure()) {
     return back()
@@ -383,7 +383,7 @@ if ($ptResponse->isFailure()) {
 $mapped = $ptResponse->getPayloadMapped();
 
 if ($mapped->isPaymentSuccessful()) {
-    $refud_data = [
+    $refund_data = [
         'amount' => $mapped->tran_total,
         'status' => $mapped->payment_result->response_status,
         'tran_ref' => $mapped->tran_ref,
@@ -409,8 +409,9 @@ return redirect()->route('orders.index')
 Always store the transaction reference & the trace code returned by PayTabs:
 
 ```php
-$transactionRef = $response->tran_ref;
-$traceCode = $response->trace || $response->ipn_trace;
+$mappedPayload = $response->getPayloadMapped();
+$transactionRef = $mappedPayload->tran_ref;
+$traceCode = $mappedPayload->trace ?? $mappedPayload->ipn_trace;
 ```
 
 ### 2. Log All Payment Events
@@ -421,7 +422,7 @@ use Illuminate\Support\Facades\Log;
 Log::info('Payment initiated', [
     'order_id' => $order->id,
     'amount' => $order->total,
-    'transaction_ref' => $response->tran_ref,
+    'transaction_ref' => $mappedPayload->tran_ref,
 ]);
 ```
 

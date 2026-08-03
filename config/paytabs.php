@@ -60,7 +60,7 @@ return [
     | Paytabs\Laravel\Contracts\IpnHandlerInterface
     |
     */
-    'ipn_handler' => '',
+    'ipn_handler' => null,
 
     /*
     |--------------------------------------------------------------------------
@@ -72,7 +72,7 @@ return [
     | Paytabs\Laravel\Contracts\ProfileResolverInterface
     |
     */
-    'ipn_profile_resolver' => '',
+    'ipn_profile_resolver' => null,
 
     /*
     |--------------------------------------------------------------------------
@@ -104,7 +104,7 @@ return [
     | with an error status to trigger upstream retries.
     |
     */
-    'ack_on_handler_exception' => true,
+    'ack_on_handler_exception' => false,
 
     /*
     |--------------------------------------------------------------------------

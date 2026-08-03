@@ -5,10 +5,12 @@ declare(strict_types=1);
 namespace Paytabs\Laravel\Services;
 
 use Illuminate\Contracts\Container\Container;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\Log;
 use Paytabs\Laravel\Contracts\IpnIdempotencyGuardInterface;
 use Paytabs\Laravel\Exceptions\IdempotencyException;
+use Paytabs\Laravel\Exceptions\InvalidPayloadException;
 use Paytabs\Laravel\Paytabs;
 use Paytabs\Sdk\Exceptions\InvalidSignatureException;
 use Paytabs\Sdk\Profile\Profile;
@@ -21,6 +23,10 @@ use Throwable;
 
 class PaytabsResultProcessor
 {
+    private ?AbstractTransactionResult $resultIpn = null;
+
+    private ?AbstractTransactionResult $resultBrowser = null;
+
     /**
      * Create a new PayTabs result processor.
      *
@@ -34,6 +40,24 @@ class PaytabsResultProcessor
         private readonly ?IpnIdempotencyGuardInterface $idempotencyGuard = null,
     ) {}
 
+    private function getIpnResult(): AbstractTransactionResult
+    {
+        if ($this->resultIpn === null) {
+            $this->resultIpn = Callback::init();
+        }
+
+        return $this->resultIpn;
+    }
+
+    private function getBrowserResult(): AbstractTransactionResult
+    {
+        if ($this->resultBrowser === null) {
+            $this->resultBrowser = BrowserAsPost::init();
+        }
+
+        return $this->resultBrowser;
+    }
+
     /**
      * Dispatch an IPN from the current request.
      *
@@ -45,7 +69,7 @@ class PaytabsResultProcessor
             $ipnData = $this->handleIpn();
 
             if ($this->shouldProcessIpn($ipnData)) {
-                $this->dispatchVerifiedTransactionResult(Callback::init(), $ipnData);
+                $this->dispatchVerifiedTransactionResult($this->getIpnResult(), $ipnData);
             }
 
             return true;
@@ -84,10 +108,10 @@ class PaytabsResultProcessor
      */
     public function handleCallback(bool $idempotencyCheck = true): Ipn
     {
-        $ipnData = $this->getTransactionResult(Callback::init());
+        $ipnData = $this->getTransactionResult($this->getIpnResult());
 
         if ($ipnData instanceof Browser) {
-            throw new \RuntimeException('Expected Ipn payload, got Browser payload.');
+            throw new InvalidPayloadException('Expected Ipn payload, got Browser payload.');
         }
 
         if ($idempotencyCheck && ! $this->shouldProcessIpn($ipnData)) {
@@ -104,10 +128,10 @@ class PaytabsResultProcessor
      */
     public function handleRedirect(): Browser
     {
-        $browserData = $this->getTransactionResult(BrowserAsPost::init());
+        $browserData = $this->getTransactionResult($this->getBrowserResult());
 
         if ($browserData instanceof Ipn) {
-            throw new \RuntimeException('Expected Browser payload, got Ipn payload.');
+            throw new InvalidPayloadException('Expected Browser payload, got Ipn payload.');
         }
 
         return $browserData;
@@ -127,7 +151,7 @@ class PaytabsResultProcessor
         $payload = $transactionResult->getPayload();
 
         if ($payload === null) {
-            throw new \RuntimeException('Failed to map payload from transaction result.');
+            throw new InvalidPayloadException('Failed to map payload from transaction result.');
         }
 
         /** @var Ipn|Browser $mappedPayload */
@@ -178,7 +202,9 @@ class PaytabsResultProcessor
      */
     public function shouldProcessIpn(Ipn $ipn): bool
     {
-        return $this->idempotencyGuard($ipn) && $this->timeGuard($ipn);
+        return
+            $this->timeGuard($ipn)
+            && $this->idempotencyGuard($ipn);
     }
 
     public function idempotencyGuard(Ipn $ipn): bool
@@ -212,7 +238,7 @@ class PaytabsResultProcessor
         }
 
         $ipnTime = $ipn->payment_result->transaction_time;
-        if (now()->subSeconds($timeGuardTtl)->gt($ipnTime)) {
+        if (Carbon::now()->subSeconds($timeGuardTtl)->gt($ipnTime)) {
             Log::warning('Old IPN received', [
                 'tran_ref' => $ipn->tran_ref,
                 'ipn_time' => $ipnTime,

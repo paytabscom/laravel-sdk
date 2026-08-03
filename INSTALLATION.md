@@ -111,7 +111,11 @@ return [
     'ipn_idempotency_ttl_seconds' => 180,
 
     // Error handling
-    'ack_on_handler_exception' => true,
+    'ack_on_handler_exception' => false,
+
+    // Time Guard
+    'ipn_time_guard_enabled' => true,
+    'ipn_time_guard_ttl_seconds' => 3600,
 ];
 ```
 
@@ -203,7 +207,7 @@ Adjust the idempotency lock duration:
 If you encounter configuration validation errors:
 
 ```
-PayTabs endpoint is not configured. Please set PAYTABS_ENDPOINT in your environment variables.
+PayTabs SDK:: Invalid value of key: [%s].
 ```
 
 **Solution**: Ensure all required environment variables are set in your `.env` file and run:
