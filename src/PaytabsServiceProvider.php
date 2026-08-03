@@ -42,7 +42,8 @@ class PaytabsServiceProvider extends ServiceProvider
             'paytabs',
         );
 
-        $this->app->singleton(Paytabs::class);
+        // Scoped binding isolates SDK state per request/job lifecycle.
+        $this->app->scoped(Paytabs::class);
         $this->app->bind(IpnIdempotencyGuardInterface::class, CacheIpnIdempotencyGuard::class);
         $this->app->bind(PaytabsResultProcessor::class);
     }
