@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Paytabs\Laravel\Services;
 
 use Illuminate\Contracts\Cache\Factory as CacheFactory;
+use Illuminate\Contracts\Cache\Repository;
 use Illuminate\Support\Facades\Config;
 use Paytabs\Laravel\Contracts\IpnIdempotencyGuardInterface;
 use Paytabs\Sdk\Response\Payload\Payloads\Callbacks\Ipn;
@@ -43,7 +44,7 @@ class CacheIpnIdempotencyGuard implements IpnIdempotencyGuardInterface
         $this->store()->forget($this->buildKey($payload));
     }
 
-    private function store()
+    private function store(): Repository
     {
         $storeName = trim((string) Config::get('paytabs.ipn_idempotency_cache_store', ''));
 
@@ -66,8 +67,8 @@ class CacheIpnIdempotencyGuard implements IpnIdempotencyGuardInterface
             '%s:%d:%s:%s',
             $prefix,
             $payload->profile_id,
-            $payload->ipn_trace,
             $payload->tran_ref,
+            $payload->tran_type,
         );
     }
 }

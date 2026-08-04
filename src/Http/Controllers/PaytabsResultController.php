@@ -70,8 +70,14 @@ class PaytabsResultController
                     500,
                 );
 
+            case IpnOutcome::Disabled:
+                return Response::json(
+                    ['status' => 'error', 'message' => 'IPN Handling Disabled'],
+                    200,
+                );
+
             default:
-                Log::warning('Unknown IPN outcome: '.$ipnOutcome->value);
+                Log::warning('Unknown IPN outcome: '.$ipnOutcome->name);
 
                 return Response::json(
                     ['status' => 'error', 'message' => 'Unknown IPN outcome'],
