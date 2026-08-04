@@ -16,4 +16,6 @@ interface IpnIdempotencyGuardInterface
      * @return bool True if this is the first delivery, false if duplicate
      */
     public function acquire(Ipn $payload): bool;
+
+    public function release(Ipn $payload): void;
 }

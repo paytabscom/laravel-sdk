@@ -91,6 +91,10 @@ class PaytabsResultProcessor
                 'exception' => $e,
             ]);
 
+            if (isset($ipnData)) {
+                $this->idempotencyRelease($ipnData);
+            }
+
             return IpnOutcome::HandlerFailed;
         }
     }
@@ -233,6 +237,21 @@ class PaytabsResultProcessor
         }
 
         return $isFirstDelivery;
+    }
+
+    public function idempotencyRelease(Ipn $ipn): void
+    {
+        if (! (bool) Config::get('paytabs.ipn_idempotency_enabled', true)) {
+            return;
+        }
+
+        $guard = $this->idempotencyGuard ?? $this->container->make(IpnIdempotencyGuardInterface::class);
+        $guard->release($ipn);
+
+        Log::info('Idempotency released.', [
+            'tran_ref' => $ipn->tran_ref,
+            'trace' => $ipn->ipn_trace,
+        ]);
     }
 
     public function timeGuard(Ipn $ipn): bool

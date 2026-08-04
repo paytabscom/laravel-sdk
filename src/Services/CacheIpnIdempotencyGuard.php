@@ -28,18 +28,28 @@ class CacheIpnIdempotencyGuard implements IpnIdempotencyGuardInterface
      */
     public function acquire(Ipn $payload): bool
     {
-        $storeName = trim((string) Config::get('paytabs.ipn_idempotency_cache_store', ''));
-        $cacheStore = $storeName === ''
-            ? $this->cacheFactory->store()
-            : $this->cacheFactory->store($storeName);
-
         $ttlSeconds = max(1, (int) Config::get('paytabs.ipn_idempotency_ttl_seconds', 180));
 
-        return $cacheStore->add(
+        return $this->store()->add(
             $this->buildKey($payload),
             true,
             $ttlSeconds,
         );
+    }
+
+    // CacheIpnIdempotencyGuard
+    public function release(Ipn $payload): void
+    {
+        $this->store()->forget($this->buildKey($payload));
+    }
+
+    private function store()
+    {
+        $storeName = trim((string) Config::get('paytabs.ipn_idempotency_cache_store', ''));
+
+        return $storeName === ''
+            ? $this->cacheFactory->store()
+            : $this->cacheFactory->store($storeName);
     }
 
     /**
