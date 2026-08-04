@@ -8,6 +8,7 @@ use Illuminate\Contracts\Container\Container;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\Log;
+use IpnOutcome;
 use Paytabs\Laravel\Contracts\IpnIdempotencyGuardInterface;
 use Paytabs\Laravel\Exceptions\IdempotencyException;
 use Paytabs\Laravel\Exceptions\InvalidPayloadException;
@@ -61,30 +62,36 @@ class PaytabsResultProcessor
     /**
      * Dispatch an IPN from the current request.
      *
-     * @return bool True if signature was valid, false otherwise
+     * @return IpnOutcome The outcome of the IPN dispatch
      */
-    public function dispatchIpn(): bool
+    public function dispatchIpn(): IpnOutcome
     {
         try {
             $ipnData = $this->handleIpn();
 
-            if ($this->shouldProcessIpn($ipnData)) {
-                $this->dispatchVerifiedTransactionResult($this->getIpnResult(), $ipnData);
+            if (! $this->timeGuard($ipnData)) {
+                return IpnOutcome::Stale;
             }
 
-            return true;
+            if (! $this->idempotencyGuard($ipnData)) {
+                return IpnOutcome::Duplicate;
+            }
+
+            $this->dispatchVerifiedTransactionResult($this->getIpnResult(), $ipnData);
+
+            return IpnOutcome::Processed;
         } catch (InvalidSignatureException $e) {
             Log::warning('PayTabs IPN rejected: invalid signature.', [
                 'exception' => $e,
             ]);
 
-            return false;
+            return IpnOutcome::InvalidSignature;
         } catch (Throwable $e) {
             Log::error('PayTabs IPN handler execution failed.', [
                 'exception' => $e,
             ]);
 
-            return (bool) Config::get('paytabs.ack_on_handler_exception', true);
+            return IpnOutcome::HandlerFailed;
         }
     }
 

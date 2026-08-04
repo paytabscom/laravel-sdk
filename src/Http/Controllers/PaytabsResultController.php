@@ -8,6 +8,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Response;
+use IpnOutcome;
 use Paytabs\Laravel\Services\PaytabsResultProcessor;
 
 class PaytabsResultController
@@ -34,16 +35,49 @@ class PaytabsResultController
             return Response::json();
         }
 
-        $isVerified = $this->paytabsResultProcessor->dispatchIpn();
+        $ipnOutcome = $this->paytabsResultProcessor->dispatchIpn();
 
-        if (! $isVerified) {
-            return Response::json(
-                ['status' => 'error', 'message' => 'Invalid Signature'],
-                401,
-            );
+        switch ($ipnOutcome) {
+            case IpnOutcome::Processed:
+                return Response::json(['status' => 'received']);
+
+            case IpnOutcome::InvalidSignature:
+                return Response::json(
+                    ['status' => 'error', 'message' => 'Invalid Signature'],
+                    401,
+                );
+
+            case IpnOutcome::Stale:
+                return Response::json(
+                    ['status' => 'error', 'message' => 'Stale IPN'],
+                    200,
+                );
+
+            case IpnOutcome::Duplicate:
+                return Response::json(
+                    ['status' => 'error', 'message' => 'Duplicate IPN'],
+                    200,
+                );
+
+            case IpnOutcome::HandlerFailed:
+                $ack_exception = (bool) Config::get('paytabs.ack_on_handler_exception', false);
+                if ($ack_exception) {
+                    return Response::json(['status' => 'received']);
+                }
+
+                return Response::json(
+                    ['status' => 'error', 'message' => 'IPN Handler Failed'],
+                    500,
+                );
+
+            default:
+                Log::warning('Unknown IPN outcome: '.$ipnOutcome->value);
+
+                return Response::json(
+                    ['status' => 'error', 'message' => 'Unknown IPN outcome'],
+                    500,
+                );
         }
-
-        return Response::json(['status' => 'received']);
     }
 
     /**
