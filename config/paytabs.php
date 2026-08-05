@@ -55,7 +55,7 @@ return [
     |--------------------------------------------------------------------------
     |
     | Optional handler class for IPN processing.
-    | __invoke(...) is called only for verified payloads. The class must
+    | handleIpn() is called only for verified payloads. The class must
     | implement:
     | Paytabs\Laravel\Contracts\IpnHandlerInterface
     |

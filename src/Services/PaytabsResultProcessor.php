@@ -12,6 +12,7 @@ use IpnOutcome;
 use Paytabs\Laravel\Contracts\IpnIdempotencyGuardInterface;
 use Paytabs\Laravel\Exceptions\IdempotencyException;
 use Paytabs\Laravel\Exceptions\InvalidPayloadException;
+use Paytabs\Laravel\Exceptions\IpnProcessingException;
 use Paytabs\Laravel\Paytabs;
 use Paytabs\Sdk\Exceptions\InvalidSignatureException;
 use Paytabs\Sdk\Profile\Profile;
@@ -66,26 +67,19 @@ class PaytabsResultProcessor
      */
     public function dispatchIpn(): IpnOutcome
     {
+        $ipnOutcome = IpnOutcome::HandlerFailed;
         try {
-            $ipnData = $this->handleIpn();
-
-            if (! $this->timeGuard($ipnData)) {
-                return IpnOutcome::Stale;
-            }
-
-            if (! $this->idempotencyGuard($ipnData)) {
-                return IpnOutcome::Duplicate;
-            }
+            $ipnData = $this->handleIpn($ipnOutcome, true);
 
             $this->dispatchVerifiedTransactionResult($this->getIpnResult(), $ipnData);
 
-            return IpnOutcome::Processed;
-        } catch (InvalidSignatureException $e) {
-            Log::warning('PayTabs IPN rejected: invalid signature.', [
+            $ipnOutcome = IpnOutcome::Processed;
+        } catch (IpnProcessingException $e) {
+            Log::error('PayTabs IPN processing failed.', [
                 'exception' => $e,
             ]);
 
-            return IpnOutcome::InvalidSignature;
+            return $ipnOutcome;
         } catch (Throwable $e) {
             Log::error('PayTabs IPN handler execution failed.', [
                 'exception' => $e,
@@ -95,8 +89,10 @@ class PaytabsResultProcessor
                 $this->idempotencyRelease($ipnData);
             }
 
-            return IpnOutcome::HandlerFailed;
+            $ipnOutcome = IpnOutcome::HandlerFailed;
         }
+
+        return $ipnOutcome;
     }
 
     /**
@@ -104,9 +100,9 @@ class PaytabsResultProcessor
      *
      * @return Ipn The verified IPN payload
      */
-    public function handleIpn(bool $idempotencyCheck = false): Ipn
+    public function handleIpn(IpnOutcome &$ipnOutcome, bool $idempotencyCheck = false): Ipn
     {
-        return $this->handleCallback($idempotencyCheck);
+        return $this->handleCallback($ipnOutcome, $idempotencyCheck);
     }
 
     /**
@@ -117,16 +113,47 @@ class PaytabsResultProcessor
      *
      * @throws IdempotencyException If duplicate delivery detected
      */
-    public function handleCallback(bool $idempotencyCheck = true): Ipn
-    {
-        $ipnData = $this->getTransactionResult($this->getIpnResult());
+    public function handleCallback(
+        IpnOutcome &$ipnOutcome = IpnOutcome::HandlerFailed,
+        bool $idempotencyCheck = true
+    ): Ipn {
+        try {
+            $ipnData = $this->getTransactionResult($this->getIpnResult());
+            $ipnOutcome = IpnOutcome::Processed;
+        } catch (InvalidSignatureException $e) {
+            Log::warning('PayTabs IPN rejected: invalid signature.', [
+                'exception' => $e,
+            ]);
+
+            $ipnOutcome = IpnOutcome::InvalidSignature;
+        } catch (Throwable $e) {
+            Log::error('PayTabs IPN handler execution failed.', [
+                'exception' => $e,
+            ]);
+
+            $ipnOutcome = IpnOutcome::HandlerFailed;
+        }
+
+        if (! isset($ipnData)) {
+            throw new IpnProcessingException;
+        }
 
         if ($ipnData instanceof Browser) {
             throw new InvalidPayloadException('Expected Ipn payload, got Browser payload.');
         }
 
-        if ($idempotencyCheck && ! $this->shouldProcessIpn($ipnData)) {
-            throw IdempotencyException::duplicateDelivery();
+        if ($idempotencyCheck) {
+            if (! $this->timeGuard($ipnData)) {
+                $ipnOutcome = IpnOutcome::Stale;
+
+                throw IpnProcessingException::forIpn($ipnData);
+            }
+
+            if (! $this->idempotencyGuard($ipnData)) {
+                $ipnOutcome = IpnOutcome::Duplicate;
+
+                throw IpnProcessingException::forIpn($ipnData);
+            }
         }
 
         return $ipnData;
@@ -178,6 +205,10 @@ class PaytabsResultProcessor
         $isGenuine = $transactionResult->isGenuine();
 
         if (! $isGenuine) {
+            Log::warning('PayTabs IPN rejected: invalid Signature.', [
+                'Profile' => $resolvedProfile->getServerKeyPrefix(),
+            ]);
+
             throw InvalidSignatureException::mismatch($resolvedProfile->getServerKeyPrefix());
         }
 

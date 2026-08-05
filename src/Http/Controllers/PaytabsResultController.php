@@ -29,14 +29,20 @@ class PaytabsResultController
      */
     public function ipn(): JsonResponse
     {
-        if (! $this->shouldHandleIpn()) {
+        $ipnHandlerEnabled = (bool) Config::get('paytabs.ipn_enabled', true);
+        if (! $ipnHandlerEnabled) {
             Log::warning('IPN handling is disabled. See "paytabs.ipn_enabled" configuration value.');
 
-            return Response::json();
+            return Response::json(['IPN handler disabled'], 200);
         }
 
         $ipnOutcome = $this->paytabsResultProcessor->dispatchIpn();
 
+        return $this->defaultIpnOutcomeResponse($ipnOutcome);
+    }
+
+    public function defaultIpnOutcomeResponse(IpnOutcome $ipnOutcome): JsonResponse
+    {
         switch ($ipnOutcome) {
             case IpnOutcome::Processed:
                 return Response::json(['status' => 'received']);
@@ -84,15 +90,5 @@ class PaytabsResultController
                     500,
                 );
         }
-    }
-
-    /**
-     * Check if IPN handling is enabled in configuration.
-     *
-     * @return bool True if IPN handling is enabled
-     */
-    private function shouldHandleIpn(): bool
-    {
-        return (bool) Config::get('paytabs.ipn_enabled', true);
     }
 }
