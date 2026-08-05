@@ -64,11 +64,12 @@ class CacheIpnIdempotencyGuard implements IpnIdempotencyGuardInterface
         $prefix = trim((string) Config::get('paytabs.ipn_idempotency_key_prefix', 'paytabs:ipn'));
 
         return sprintf(
-            '%s:%d:%s:%s',
+            '%s:%d:%s:%s:%s',
             $prefix,
             $payload->profile_id,
             $payload->tran_ref,
             $payload->tran_type,
+            isset($payload->payment_result) ? $payload->payment_result->transaction_time : '',
         );
     }
 }
