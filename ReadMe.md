@@ -16,7 +16,7 @@ Official PayTabs Laravel SDK for Payment Gateway integrations. This package prov
 
 ## Requirements
 
-- PHP >= 8.1
+- PHP >= 8.1 (>= 8.3 when using Laravel 13)
 - Laravel >= 11.0
 - PayTabs PHP SDK v3
 
@@ -153,6 +153,7 @@ The package configuration file `config/paytabs.php` includes the following optio
 | `ack_on_handler_exception` | Acknowledge IPN even if handler fails | `false` |
 | `ipn_time_guard_enabled` | Enable transaction time Guard | `true` |
 | `ipn_time_guard_ttl_seconds` | Transaction time guard TTL (seconds) | `3600` |
+| `ipn_time_guard_future_skew_seconds` | Tolerance for IPNs ahead of server time | `300` |
 
 ## Using Multiple Profiles
 

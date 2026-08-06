@@ -1,10 +1,11 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Paytabs\Laravel\Enums;
 
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Config;
-use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Response;
 
 enum IpnOutcome
@@ -16,54 +17,25 @@ enum IpnOutcome
     case HandlerFailed;
     case Disabled;
 
-    public function defaultResponseMapper(): JsonResponse
+    /**
+     * Map the outcome to the JSON response returned to PayTabs.
+     *
+     * @return JsonResponse The response for this outcome
+     */
+    public function toResponse(): JsonResponse
     {
-        switch ($this) {
-            case IpnOutcome::Processed:
-                return Response::json(['status' => 'received']);
+        // Acknowledged deliveries must return 2xx, otherwise PayTabs keeps retrying.
+        [$statusCode, $payload] = match ($this) {
+            self::Processed => [200, ['status' => 'received']],
+            self::InvalidSignature => [401, ['status' => 'error', 'message' => 'Invalid Signature']],
+            self::Stale => [200, ['status' => 'ignored', 'message' => 'Stale IPN']],
+            self::Duplicate => [200, ['status' => 'ignored', 'message' => 'Duplicate IPN']],
+            self::Disabled => [200, ['status' => 'ignored', 'message' => 'IPN Handling Disabled']],
+            self::HandlerFailed => (bool) Config::get('paytabs.ack_on_handler_exception', false)
+                ? [200, ['status' => 'received']]
+                : [500, ['status' => 'error', 'message' => 'IPN Handler Failed']],
+        };
 
-            case IpnOutcome::InvalidSignature:
-                return Response::json(
-                    ['status' => 'error', 'message' => 'Invalid Signature'],
-                    401,
-                );
-
-            case IpnOutcome::Stale:
-                return Response::json(
-                    ['status' => 'error', 'message' => 'Stale IPN'],
-                    200,
-                );
-
-            case IpnOutcome::Duplicate:
-                return Response::json(
-                    ['status' => 'error', 'message' => 'Duplicate IPN'],
-                    200,
-                );
-
-            case IpnOutcome::HandlerFailed:
-                $ack_exception = (bool) Config::get('paytabs.ack_on_handler_exception', false);
-                if ($ack_exception) {
-                    return Response::json(['status' => 'received']);
-                }
-
-                return Response::json(
-                    ['status' => 'error', 'message' => 'IPN Handler Failed'],
-                    500,
-                );
-
-            case IpnOutcome::Disabled:
-                return Response::json(
-                    ['status' => 'error', 'message' => 'IPN Handling Disabled'],
-                    200,
-                );
-
-            default:
-                Log::warning('Unknown IPN outcome: '.$this->name);
-
-                return Response::json(
-                    ['status' => 'error', 'message' => 'Unknown IPN outcome'],
-                    500,
-                );
-        }
+        return Response::json($payload, $statusCode);
     }
 }

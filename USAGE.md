@@ -95,7 +95,7 @@ To fit the payment page inside iFrame:
 use Paytabs\Sdk\Enums\FramedTarget;
 use Paytabs\Sdk\Request\Payload\Parts\Framed;
 
-$payload->buildFramedObj(new Framed(true, FramedTarget::ReturnTop))
+$payload->buildFramedObj(new Framed(true, FramedTarget::ReturnTop));
 ```
 
 ### Customizing the Payment page: Language, Alternative currency & Theme ID
@@ -103,7 +103,7 @@ $payload->buildFramedObj(new Framed(true, FramedTarget::ReturnTop))
 ```php
 use Paytabs\Sdk\Enums\Language;
 
-$payload->buildPaypageConfig(Language::Arabic, 'USD', $themeId)
+$payload->buildPaypageConfig(Language::Arabic, 'USD', $themeId);
 ```
 
 ## Handling Responses
@@ -213,7 +213,7 @@ Paytabs::usingDefaults();
 
 ```php
 use Paytabs\Laravel\Facades\Paytabs;
-use Paytabs\Sdk\Profile\Endpoints\Egy;
+use Paytabs\Sdk\Profile\EndpointsFactory;
 
 // Use Egypt profile for this transaction
 Paytabs::usingCredentials(
@@ -279,7 +279,8 @@ Configure in `config/paytabs.php`:
 
 ```php
 use Paytabs\Sdk\Exceptions\InvalidConfigurationException;
-use Paytabs\Sdk\Exceptions\InvalidSignatureException;
+use Paytabs\Laravel\Exceptions\IpnProcessingException;
+use Paytabs\Laravel\Enums\IpnOutcome;
 
 try {
     $response = Paytabs::submitRequest($request);
@@ -296,15 +297,24 @@ try {
 // Callback/IPN
 
 try {
-    $result = Paytabs::getResultProcessor()->handleCallback(true);
-} catch (InvalidSignatureException $e1) {
-    Log::alert('Invalid signature in PayTabs callback', ['message' => $e1->getMessage()]);
+    $outcome = IpnOutcome::HandlerFailed;
+    $result = Paytabs::getResultProcessor()->handleCallback($outcome, true);
+} catch (IpnProcessingException $e1) {
+    Log::warning('PayTabs callback ignored or failed', [
+        'outcome' => $outcome->name,
+        'message' => $e1->getMessage(),
+    ]);
 
-    return response(['message' => 'Invalid signature'], 401);
-} catch (IdempotencyException $e2) {
-    Log::warning('Duplicate PayTabs callback', ['message' => $e2->getMessage()]);
+    return $outcome->toResponse();
 
-    return response(['message' => 'Duplicate detected'], 200);
+    // OR Handle it your way:
+    // switch($outcome) {
+    //   case IpnOutcome::InvalidSignature:
+    //   case IpnOutcome::Duplicate:
+    //   case IpnOutcome::Stale:
+    //   case IpnOutcome::HandlerFailed:
+    //   ...
+    // }
 }
 ```
 

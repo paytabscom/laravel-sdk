@@ -6,7 +6,7 @@ This guide provides detailed instructions for installing and configuring the Pay
 
 Before installing the package, ensure your system meets the following requirements:
 
-- **PHP**: >= 8.1
+- **PHP**: >= 8.1 (>= 8.3 when using Laravel 13)
 - **Laravel**: >= 11.0
 - **Composer**
 - **Extensions**: 
@@ -51,7 +51,7 @@ PAYTABS_SERVER_KEY=your_server_key_here
 
 | Variable | Required | Description | Example |
 |----------|----------|-------------|---------|
-| `PAYTABS_ENDPOINT` | Yes | PayTabs endpoint region code (ISO 3166-1 alpha-3) | `ARE`, `SAU`, `EGY`, `JOR`, `KWT`, `OMN` |
+| `PAYTABS_ENDPOINT` | Yes | PayTabs endpoint region code (ISO 3166-1 alpha-3) | `ARE`, `SAU`, `EGY`, `JOR`, `KWT`, `OMN`, ... |
 | `PAYTABS_PROFILE_ID` | Yes | Your PayTabs merchant profile ID | `12345` |
 | `PAYTABS_SERVER_KEY` | Yes | Your PayTabs server key from merchant dashboard | `S9K3...` |
 
@@ -89,7 +89,7 @@ return [
 
     // Your PayTabs credentials
     'profile_id' => env('PAYTABS_PROFILE_ID'),
-    'server_key' => env('PAYTABS_SERVER_KEY'),
+    'server_key' => env('PAYTABS_SERVER_KEY', ''),
 
     // Automatically add plugin info to requests
     'auto_fill_plugin_info' => true,
@@ -164,7 +164,7 @@ If you prefer to define the IPN route manually:
 'load_routes' => false,
 ```
 
-Then add the route to your `routes/web.php` or `routes/api.php`:
+Then add the route to your `routes/api.php`:
 
 ```php
 use Paytabs\Laravel\Http\Controllers\PaytabsResultController;
@@ -173,6 +173,10 @@ Route::post('webhooks/paytabs', [PaytabsResultController::class, 'ipn'])
     ->middleware(['api'])
     ->name('paytabs.ipn');
 ```
+
+> **Do not register the IPN route in `routes/web.php`.** The `web` middleware group
+> applies CSRF verification, and PayTabs cannot send a CSRF token, so every
+> notification would be rejected with a `419` response.
 
 ### Idempotency Configuration
 
@@ -225,7 +229,8 @@ If you see an error about the cURL extension:
 cURL extension is required
 ```
 
-**Solution**: Install the cURL extension for your PHP version:
+**Solution**: Install the cURL extension for your PHP version.
+
 
 
 ### IPN Route Not Working

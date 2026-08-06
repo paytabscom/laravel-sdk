@@ -38,7 +38,11 @@ class CacheIpnIdempotencyGuard implements IpnIdempotencyGuardInterface
         );
     }
 
-    // CacheIpnIdempotencyGuard
+    /**
+     * Release processing ownership so the delivery can be retried.
+     *
+     * @param  Ipn  $payload  The IPN payload whose lock should be released
+     */
     public function release(Ipn $payload): void
     {
         $this->store()->forget($this->buildKey($payload));
@@ -63,13 +67,15 @@ class CacheIpnIdempotencyGuard implements IpnIdempotencyGuardInterface
     {
         $prefix = trim((string) Config::get('paytabs.ipn_idempotency_key_prefix', 'paytabs:ipn'));
 
-        return sprintf(
-            '%s:%d:%s:%s:%s',
-            $prefix,
-            $payload->profile_id,
-            $payload->tran_ref,
-            $payload->tran_type,
-            isset($payload->payment_result) ? $payload->payment_result->transaction_time : '',
-        );
+        // Payload properties are typed and non-nullable, so ?? guards against unmapped fields.
+        $composite = implode('|', [
+            $payload->profile_id ?? '',
+            $payload->tran_ref ?? '',
+            $payload->tran_type ?? '',
+            $payload->payment_result->transaction_time ?? '',
+        ]);
+
+        // Hashed to bound the key length, since tran_ref has no documented maximum.
+        return $prefix.':'.hash('sha256', $composite);
     }
 }

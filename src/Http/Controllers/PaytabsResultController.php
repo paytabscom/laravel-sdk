@@ -7,7 +7,7 @@ namespace Paytabs\Laravel\Http\Controllers;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\Response;
+use Paytabs\Laravel\Enums\IpnOutcome;
 use Paytabs\Laravel\Services\PaytabsResultProcessor;
 
 class PaytabsResultController
@@ -30,13 +30,13 @@ class PaytabsResultController
     {
         $ipnHandlerEnabled = (bool) Config::get('paytabs.ipn_enabled', true);
         if (! $ipnHandlerEnabled) {
-            Log::warning('IPN handling is disabled. See "paytabs.ipn_enabled" configuration value.');
+            Log::debug('IPN handling is disabled. See "paytabs.ipn_enabled" configuration value.');
 
-            return Response::json(['IPN handler disabled'], 200);
+            return IpnOutcome::Disabled->toResponse();
         }
 
         $ipnOutcome = $this->paytabsResultProcessor->dispatchIpn();
 
-        return $ipnOutcome->defaultResponseMapper();
+        return $ipnOutcome->toResponse();
     }
 }

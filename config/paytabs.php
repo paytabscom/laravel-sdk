@@ -67,8 +67,9 @@ return [
     | PayTabs Result Profile Resolver
     |--------------------------------------------------------------------------
     |
-    | Optional invokable class to select a profile for validating
-    | PayTabs result callbacks (including IPN). The class must implement:
+    | Optional class to select a profile for validating
+    | PayTabs result callbacks (including IPN). resolveProfile() is called with
+    | the mapped payload. The class must implement:
     | Paytabs\Laravel\Contracts\ProfileResolverInterface
     |
     */
@@ -121,4 +122,7 @@ return [
 
     /** Time guard TTL in seconds. IPNs older than this are ignored. */
     'ipn_time_guard_ttl_seconds' => 3600,
+
+    /** Tolerance in seconds for IPNs timestamped ahead of server time. */
+    'ipn_time_guard_future_skew_seconds' => 300,
 ];
