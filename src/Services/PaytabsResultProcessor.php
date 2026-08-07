@@ -11,9 +11,9 @@ use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\Log;
 use Paytabs\Laravel\Contracts\IpnIdempotencyGuardInterface;
 use Paytabs\Laravel\Enums\IpnOutcome;
+use Paytabs\Laravel\Exceptions\CallbackProcessingException;
 use Paytabs\Laravel\Exceptions\IdempotencyException;
 use Paytabs\Laravel\Exceptions\InvalidPayloadException;
-use Paytabs\Laravel\Exceptions\IpnProcessingException;
 use Paytabs\Laravel\Paytabs;
 use Paytabs\Sdk\Exceptions\InvalidSignatureException;
 use Paytabs\Sdk\Profile\Profile;
@@ -68,7 +68,9 @@ class PaytabsResultProcessor
     private function getBrowserResult(): AbstractTransactionResult
     {
         if ($this->resultBrowser === null) {
-            $this->resultBrowser = BrowserAsPost::initWith($this->request()->request->all());
+            $this->resultBrowser = BrowserAsPost::initWith(
+                $this->request()->request->all()
+            );
         }
 
         return $this->resultBrowser;
@@ -101,22 +103,22 @@ class PaytabsResultProcessor
 
         try {
             $ipnData = $this->handleIpn($ipnOutcome, true);
-        } catch (IpnProcessingException $e) {
+        } catch (CallbackProcessingException $e) {
             Log::error('PayTabs IPN verification failed.', [
                 'outcome' => $ipnOutcome->name,
-                'exception' => $e,
+                'exception' => $e->getMessage(),
             ]);
 
             return $ipnOutcome;
         } catch (Throwable $e) {
             Log::error('PayTabs IPN verification failed unexpectedly.', [
-                'exception' => $e,
+                'exception' => $e->getMessage(),
             ]);
 
             return IpnOutcome::HandlerFailed;
         }
 
-        // Dispatched separately so a handler throwing IpnProcessingException is never reported as Processed.
+        // Dispatched separately so a handler throwing CallbackProcessingException is never reported as Processed.
         return $this->runIpnHandler($ipnData);
     }
 
@@ -133,7 +135,7 @@ class PaytabsResultProcessor
         } catch (Throwable $e) {
             Log::error('PayTabs IPN handler execution failed.', [
                 'tran_ref' => $ipnData->tran_ref ?? null,
-                'exception' => $e,
+                'exception' => $e->getMessage(),
             ]);
 
             $this->idempotencyRelease($ipnData);
@@ -151,7 +153,7 @@ class PaytabsResultProcessor
      * @param  bool  $idempotencyCheck  Whether to apply the time and duplicate guards
      * @return Ipn The verified IPN payload
      *
-     * @throws IpnProcessingException If verification or a guard rejects the delivery
+     * @throws CallbackProcessingException If verification or a guard rejects the delivery
      * @throws InvalidPayloadException If the payload is not an IPN payload
      */
     public function handleIpn(IpnOutcome &$ipnOutcome, bool $idempotencyCheck = true): Ipn
@@ -166,7 +168,7 @@ class PaytabsResultProcessor
      * @param  bool  $idempotencyCheck  Whether to apply the time and duplicate guards
      * @return Ipn The verified callback payload
      *
-     * @throws IpnProcessingException If verification or a guard rejects the delivery
+     * @throws CallbackProcessingException If verification or a guard rejects the delivery
      * @throws InvalidPayloadException If the payload is not an IPN payload
      */
     public function handleCallback(
@@ -180,11 +182,11 @@ class PaytabsResultProcessor
         } catch (InvalidSignatureException $e) {
             $ipnOutcome = IpnOutcome::InvalidSignature;
 
-            throw new IpnProcessingException('PayTabs callback rejected: invalid signature.', 0, $e);
+            throw new CallbackProcessingException('PayTabs callback rejected: invalid signature.', 0, $e);
         } catch (InvalidPayloadException $e) {
             throw $e;
         } catch (Throwable $e) {
-            throw new IpnProcessingException('PayTabs callback verification failed.', 0, $e);
+            throw new CallbackProcessingException('PayTabs callback verification failed.', 0, $e);
         }
 
         if ($ipnData instanceof Browser) {
@@ -195,7 +197,7 @@ class PaytabsResultProcessor
             if (! $this->timeGuard($ipnData)) {
                 $ipnOutcome = IpnOutcome::Stale;
 
-                throw IpnProcessingException::forIpn($ipnData, 'Stale delivery');
+                throw CallbackProcessingException::forIpn($ipnData, 'Stale delivery');
             }
 
             if (! $this->idempotencyGuard($ipnData)) {
@@ -215,13 +217,28 @@ class PaytabsResultProcessor
      *
      * @return Browser The verified browser callback payload
      */
-    public function handleRedirect(): Browser
-    {
-        $browserData = $this->getTransactionResult($this->getBrowserResult());
+    public function handleRedirect(
+        IpnOutcome &$ipnOutcome = IpnOutcome::HandlerFailed,
+    ): Browser {
+        $ipnOutcome = IpnOutcome::HandlerFailed;
+
+        try {
+            $browserData = $this->getTransactionResult($this->getBrowserResult());
+        } catch (InvalidSignatureException $e) {
+            $ipnOutcome = IpnOutcome::InvalidSignature;
+
+            throw new CallbackProcessingException('PayTabs redirect rejected: invalid signature.', 0, $e);
+        } catch (InvalidPayloadException $e) {
+            throw $e;
+        } catch (Throwable $e) {
+            throw new CallbackProcessingException('PayTabs redirect verification failed.', 0, $e);
+        }
 
         if ($browserData instanceof Ipn) {
             throw new InvalidPayloadException('Expected Browser payload, got Ipn payload.');
         }
+
+        $ipnOutcome = IpnOutcome::Processed;
 
         return $browserData;
     }
@@ -390,9 +407,9 @@ class PaytabsResultProcessor
      */
     private function findTimeGuardRejection(Ipn $ipn): ?string
     {
-        $rawTime = $ipn->payment_result->transaction_time ?? null;
+        $rawTime = trim($ipn->payment_result->transaction_time ?? '');
 
-        if (! is_string($rawTime) || trim($rawTime) === '') {
+        if (empty($rawTime)) {
             return 'missing transaction time';
         }
 

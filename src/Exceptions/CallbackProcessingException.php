@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Paytabs\Laravel\Exceptions;
 
+use Paytabs\Sdk\Response\Payload\Payloads\Callbacks\Browser;
 use Paytabs\Sdk\Response\Payload\Payloads\Callbacks\Ipn;
 
 /**
@@ -11,7 +12,7 @@ use Paytabs\Sdk\Response\Payload\Payloads\Callbacks\Ipn;
  *
  * @phpstan-consistent-constructor
  */
-class IpnProcessingException extends \RuntimeException
+class CallbackProcessingException extends \RuntimeException
 {
     /**
      * Create an exception describing why an IPN delivery was not processed.
@@ -28,6 +29,26 @@ class IpnProcessingException extends \RuntimeException
             $reason,
             $ipn->ipn_trace ?? 'unknown',
             $ipn->tran_ref ?? 'unknown',
+        );
+
+        return new static($msg);
+    }
+
+    /**
+     * Create an exception describing why a browser delivery was not processed.
+     *
+     * @param  Browser  $browser  The browser payload that was rejected
+     * @param  string  $reason  Short description of the rejection cause
+     * @return self The exception instance
+     */
+    public static function forBrowser(Browser $browser, string $reason): self
+    {
+        // Payload properties are typed and non-nullable, so ?? guards against unmapped fields.
+        $msg = sprintf(
+            'Browser processing error: %s (cartId: %s, reference: %s)',
+            $reason,
+            $browser->cartId ?? 'unknown',
+            $browser->tranRef ?? 'unknown',
         );
 
         return new static($msg);

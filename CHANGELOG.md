@@ -11,16 +11,16 @@ See [UPGRADE.md](UPGRADE.md) for migration steps.
 
 ### Breaking Changes
 - `PaytabsResultProcessor::handleIpn()` and `handleCallback()` now take an `IpnOutcome` by reference as their first argument. Calls such as `handleIpn(true)` no longer work.
-- `handleCallback()` no longer lets `InvalidSignatureException` escape. All rejections are now reported as `IpnProcessingException` (or a subclass), with the original exception available via `getPrevious()`.
+- `handleCallback()` no longer lets `InvalidSignatureException` escape. All rejections are now reported as `CallbackProcessingException` (or a subclass), with the original exception available via `getPrevious()`.
 - `IpnIdempotencyGuardInterface` now requires `release(Ipn $payload): void`. Custom guards must implement it.
-- `InvalidPayloadException` and `IdempotencyException` now extend `IpnProcessingException` instead of `RuntimeException`.
+- `InvalidPayloadException` and `IdempotencyException` now extend `CallbackProcessingException` instead of `RuntimeException`.
 - `IdempotencyException::duplicateDelivery()` was removed. Use `IdempotencyException::forIpn()`.
 - The idempotency cache key format changed. In-flight locks from a previous version are not recognized after upgrade.
 
 ### Added
 - Updated service binding to **scoped** lifecycle for safer request/job isolation.
 - `IpnOutcome` enum to standardize callback/IPN response outcomes.
-- `IpnProcessingException` as the single base exception for callbacks that were received but not processed.
+- `CallbackProcessingException` as the single base exception for callbacks that were received but not processed.
 - Added dedicated `InvalidPayloadException` for callback payload type and mapping failures.
 - `IpnIdempotencyGuardInterface::release()` so a failed handler frees the lock and PayTabs can retry.
 - `ipn_time_guard_future_skew_seconds` configuration options.

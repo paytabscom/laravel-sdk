@@ -279,7 +279,7 @@ Configure in `config/paytabs.php`:
 
 ```php
 use Paytabs\Sdk\Exceptions\InvalidConfigurationException;
-use Paytabs\Laravel\Exceptions\IpnProcessingException;
+use Paytabs\Laravel\Exceptions\CallbackProcessingException;
 use Paytabs\Laravel\Enums\IpnOutcome;
 
 try {
@@ -299,7 +299,7 @@ try {
 try {
     $outcome = IpnOutcome::HandlerFailed;
     $result = Paytabs::getResultProcessor()->handleCallback($outcome, true);
-} catch (IpnProcessingException $e1) {
+} catch (CallbackProcessingException $e1) {
     Log::warning('PayTabs callback ignored or failed', [
         'outcome' => $outcome->name,
         'message' => $e1->getMessage(),
