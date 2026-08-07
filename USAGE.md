@@ -279,7 +279,6 @@ Configure in `config/paytabs.php`:
 
 ```php
 use Paytabs\Sdk\Exceptions\InvalidConfigurationException;
-use Paytabs\Laravel\Exceptions\IpnProcessingException;
 use Paytabs\Laravel\Enums\IpnOutcome;
 
 try {
@@ -296,26 +295,27 @@ try {
 
 // Callback/IPN
 
-try {
-    $outcome = IpnOutcome::HandlerFailed;
-    $result = Paytabs::getResultProcessor()->handleCallback($outcome, true);
-} catch (IpnProcessingException $e1) {
+$result = Paytabs::getResultProcessor()->handleCallback(true);
+
+if (! $result->isProcessed()) {
     Log::warning('PayTabs callback ignored or failed', [
-        'outcome' => $outcome->name,
-        'message' => $e1->getMessage(),
+        'outcome' => $result->outcome->name,
+        'reason' => $result->reason,
     ]);
 
-    return $outcome->toResponse();
+    return $result->toResponse();
 
     // OR Handle it your way:
-    // switch($outcome) {
-    //   case IpnOutcome::InvalidSignature:
-    //   case IpnOutcome::Duplicate:
-    //   case IpnOutcome::Stale:
-    //   case IpnOutcome::HandlerFailed:
-    //   ...
-    // }
+    // match ($result->outcome) {
+    //   IpnOutcome::InvalidSignature => ...,
+    //   IpnOutcome::InvalidPayload => ...,
+    //   IpnOutcome::Duplicate => ...,
+    //   IpnOutcome::Stale => ...,
+    //   IpnOutcome::HandlerFailed => ...,
+    // };
 }
+
+$ipn = $result->payload;
 ```
 
 ## Advanced Usage

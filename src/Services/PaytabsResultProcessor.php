@@ -9,12 +9,12 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\Log;
+use JsonException;
 use Paytabs\Laravel\Contracts\IpnIdempotencyGuardInterface;
 use Paytabs\Laravel\Enums\IpnOutcome;
-use Paytabs\Laravel\Exceptions\IdempotencyException;
 use Paytabs\Laravel\Exceptions\InvalidPayloadException;
-use Paytabs\Laravel\Exceptions\IpnProcessingException;
 use Paytabs\Laravel\Paytabs;
+use Paytabs\Laravel\Results\IpnResult;
 use Paytabs\Sdk\Exceptions\InvalidSignatureException;
 use Paytabs\Sdk\Profile\Profile;
 use Paytabs\Sdk\Response\Payload\Payloads\Callbacks\Browser;
@@ -97,26 +97,20 @@ class PaytabsResultProcessor
      */
     public function dispatchIpn(): IpnOutcome
     {
-        $ipnOutcome = IpnOutcome::HandlerFailed;
+        $result = $this->handleIpn(true);
+        $ipnData = $result->payload;
 
-        try {
-            $ipnData = $this->handleIpn($ipnOutcome, true);
-        } catch (IpnProcessingException $e) {
-            Log::error('PayTabs IPN verification failed.', [
-                'outcome' => $ipnOutcome->name,
-                'exception' => $e->getMessage(),
+        if ($ipnData === null) {
+            Log::error('PayTabs IPN was not processed.', [
+                'outcome' => $result->outcome->name,
+                'reason' => $result->reason,
+                'exception' => $result->cause?->getMessage(),
             ]);
 
-            return $ipnOutcome;
-        } catch (Throwable $e) {
-            Log::error('PayTabs IPN verification failed unexpectedly.', [
-                'exception' => $e->getMessage(),
-            ]);
-
-            return IpnOutcome::HandlerFailed;
+            return $result->outcome;
         }
 
-        // Dispatched separately so a handler throwing IpnProcessingException is never reported as Processed.
+        // Dispatched separately so a handler throwing is never reported as Processed.
         return $this->runIpnHandler($ipnData);
     }
 
@@ -147,67 +141,56 @@ class PaytabsResultProcessor
     /**
      * Handle an IPN callback with idempotency check.
      *
-     * @param  IpnOutcome  $ipnOutcome  Receives the outcome by reference, set on both success and failure
      * @param  bool  $idempotencyCheck  Whether to apply the time and duplicate guards
-     * @return Ipn The verified IPN payload
-     *
-     * @throws IpnProcessingException If verification or a guard rejects the delivery
-     * @throws InvalidPayloadException If the payload is not an IPN payload
+     * @return IpnResult The outcome, carrying the verified payload when it is Processed
      */
-    public function handleIpn(IpnOutcome &$ipnOutcome, bool $idempotencyCheck = true): Ipn
+    public function handleIpn(bool $idempotencyCheck = true): IpnResult
     {
-        return $this->handleCallback($ipnOutcome, $idempotencyCheck);
+        return $this->handleCallback($idempotencyCheck);
     }
 
     /**
      * Handle a callback with optional idempotency check.
      *
-     * @param  IpnOutcome  $ipnOutcome  Receives the outcome by reference, set on both success and failure
-     * @param  bool  $idempotencyCheck  Whether to apply the time and duplicate guards
-     * @return Ipn The verified callback payload
+     * Verification failures and guard rejections are returned as outcomes, not thrown.
      *
-     * @throws IpnProcessingException If verification or a guard rejects the delivery
-     * @throws InvalidPayloadException If the payload is not an IPN payload
+     * @param  bool  $idempotencyCheck  Whether to apply the time and duplicate guards
+     * @return IpnResult The outcome, carrying the verified payload when it is Processed
      */
-    public function handleCallback(
-        IpnOutcome &$ipnOutcome = IpnOutcome::HandlerFailed,
-        bool $idempotencyCheck = true
-    ): Ipn {
-        $ipnOutcome = IpnOutcome::HandlerFailed;
-
+    public function handleCallback(bool $idempotencyCheck = true): IpnResult
+    {
         try {
             $ipnData = $this->getTransactionResult($this->getIpnResult());
         } catch (InvalidSignatureException $e) {
-            $ipnOutcome = IpnOutcome::InvalidSignature;
-
-            throw new IpnProcessingException('PayTabs callback rejected: invalid signature.', 0, $e);
+            return IpnResult::rejected(IpnOutcome::InvalidSignature, 'PayTabs callback rejected: invalid signature.', $e);
         } catch (InvalidPayloadException $e) {
-            throw $e;
+            return IpnResult::rejected(IpnOutcome::InvalidPayload, $e->getMessage(), $e);
+        } catch (JsonException $e) {
+            return IpnResult::rejected(IpnOutcome::InvalidPayload, 'PayTabs callback body is not valid JSON.', $e);
         } catch (Throwable $e) {
-            throw new IpnProcessingException('PayTabs callback verification failed.', 0, $e);
+            return IpnResult::rejected(IpnOutcome::HandlerFailed, 'PayTabs callback verification failed.', $e);
         }
 
         if ($ipnData instanceof Browser) {
-            throw new InvalidPayloadException('Expected Ipn payload, got Browser payload.');
+            return IpnResult::rejected(IpnOutcome::InvalidPayload, 'Expected Ipn payload, got Browser payload.');
         }
 
         if ($idempotencyCheck) {
-            if (! $this->timeGuard($ipnData)) {
-                $ipnOutcome = IpnOutcome::Stale;
+            try {
+                if (! $this->timeGuard($ipnData)) {
+                    return IpnResult::rejected(IpnOutcome::Stale, 'Stale delivery');
+                }
 
-                throw IpnProcessingException::forIpn($ipnData, 'Stale delivery');
-            }
-
-            if (! $this->idempotencyGuard($ipnData)) {
-                $ipnOutcome = IpnOutcome::Duplicate;
-
-                throw IdempotencyException::forIpn($ipnData, 'Duplicate delivery');
+                if (! $this->idempotencyGuard($ipnData)) {
+                    return IpnResult::rejected(IpnOutcome::Duplicate, 'Duplicate delivery');
+                }
+            } catch (Throwable $e) {
+                // A guard backend outage must not escape as an unhandled exception from the IPN endpoint.
+                return IpnResult::rejected(IpnOutcome::HandlerFailed, 'PayTabs callback guard evaluation failed.', $e);
             }
         }
 
-        $ipnOutcome = IpnOutcome::Processed;
-
-        return $ipnData;
+        return IpnResult::processed($ipnData);
     }
 
     /**

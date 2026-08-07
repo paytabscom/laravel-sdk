@@ -224,7 +224,6 @@ namespace App\Services;
 
 use Illuminate\Support\Facades\Log;
 use Paytabs\Laravel\Enums\IpnOutcome;
-use Paytabs\Laravel\Exceptions\IpnProcessingException;
 use Paytabs\Laravel\Facades\Paytabs;
 use Paytabs\Sdk\Enums\TranStatus;
 use Paytabs\Sdk\Enums\TranType;
@@ -234,27 +233,27 @@ class PaytabsCustomIpnHandler
 {
     public function handleIpn()
     {
-        $outcome = IpnOutcome::HandlerFailed;
+        $result = Paytabs::getResultProcessor()->handleIpn(true);
 
-        try {
-            $mappedPayload = Paytabs::getResultProcessor()->handleIpn($outcome, true);
-        } catch (IpnProcessingException $e) {
+        if (! $result->isProcessed()) {
             Log::warning('PayTabs callback ignored or failed', [
-                'outcome' => $outcome->name,
-                'message' => $e->getMessage(),
+                'outcome' => $result->outcome->name,
+                'reason' => $result->reason,
             ]);
 
-            return $outcome->toResponse();
+            return $result->toResponse();
 
             // OR Handle it your way:
-            // switch($outcome) {
-            //   case IpnOutcome::InvalidSignature:
-            //   case IpnOutcome::Duplicate:
-            //   case IpnOutcome::Stale:
-            //   case IpnOutcome::HandlerFailed:
-            //   ...
-            // }
+            // match ($result->outcome) {
+            //   IpnOutcome::InvalidSignature => ...,
+            //   IpnOutcome::InvalidPayload => ...,
+            //   IpnOutcome::Duplicate => ...,
+            //   IpnOutcome::Stale => ...,
+            //   IpnOutcome::HandlerFailed => ...,
+            // };
         }
+
+        $mappedPayload = $result->payload;
 
         // Continue processing the IPN payload
 

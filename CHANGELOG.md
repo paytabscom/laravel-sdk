@@ -10,16 +10,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 See [UPGRADE.md](UPGRADE.md) for migration steps.
 
 ### Breaking Changes
-- `PaytabsResultProcessor::handleIpn()` and `handleCallback()` now take an `IpnOutcome` by reference as their first argument. Calls such as `handleIpn(true)` no longer work.
-- `handleCallback()` no longer lets `InvalidSignatureException` escape. All rejections are now reported as `IpnProcessingException` (or a subclass), with the original exception available via `getPrevious()`.
+- `PaytabsResultProcessor::handleIpn()` and `handleCallback()` now return an `IpnResult` value object instead of the `Ipn` payload. The payload is available as `$result->payload`.
+- `handleIpn()` and `handleCallback()` no longer throw for rejected callbacks. Invalid signature, malformed payload, stale and duplicate deliveries are returned as `IpnResult` outcomes, with the original exception on `$result->cause`.
 - `IpnIdempotencyGuardInterface` now requires `release(Ipn $payload): void`. Custom guards must implement it.
-- `InvalidPayloadException` and `IdempotencyException` now extend `IpnProcessingException` instead of `RuntimeException`.
-- `IdempotencyException::duplicateDelivery()` was removed. Use `IdempotencyException::forIpn()`.
+- `InvalidPayloadException` now extends `IpnProcessingException` instead of `RuntimeException`.
+- `IdempotencyException` was removed. A duplicate delivery is reported as `IpnOutcome::Duplicate`.
 - The idempotency cache key format changed. In-flight locks from a previous version are not recognized after upgrade.
 
 ### Added
 - Updated service binding to **scoped** lifecycle for safer request/job isolation.
 - `IpnOutcome` enum to standardize callback/IPN response outcomes.
+- `IpnResult` value object carrying the outcome, the verified payload, the failure cause and a rejection reason in a single return value.
+- `IpnOutcome::InvalidPayload`, responding `422` so PayTabs stops retrying a delivery that can never succeed.
 - `IpnProcessingException` as the single base exception for callbacks that were received but not processed.
 - Added dedicated `InvalidPayloadException` for callback payload type and mapping failures.
 - `IpnIdempotencyGuardInterface::release()` so a failed handler frees the lock and PayTabs can retry.
@@ -27,6 +29,7 @@ See [UPGRADE.md](UPGRADE.md) for migration steps.
 - Test suite based on Orchestra Testbench, plus a CI workflow covering PHP 8.1-8.4 and Laravel 10-12.
 
 ### Fixed
+- A malformed IPN payload responded `500`, which told PayTabs to keep retrying a delivery that could never succeed. It now responds `422`.
 - Invalid signature responses logged the server key prefix, letting anyone with the endpoint URL force key material into application logs.
 - Callbacks are now read from the Laravel request rather than `php://input` and `getallheaders()`, which fixes IPN handling under Laravel Octane.
 - Payload access is guarded throughout, so an IPN missing `payment_result`, `ipn_trace` or `profile_id` no longer raises a PHP `Error`.

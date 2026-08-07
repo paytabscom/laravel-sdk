@@ -12,6 +12,7 @@ enum IpnOutcome
 {
     case Processed;
     case InvalidSignature;
+    case InvalidPayload;
     case Duplicate;
     case Stale;
     case HandlerFailed;
@@ -28,6 +29,8 @@ enum IpnOutcome
         [$statusCode, $payload] = match ($this) {
             self::Processed => [200, ['status' => 'received']],
             self::InvalidSignature => [401, ['status' => 'error', 'message' => 'Invalid Signature']],
+            // A malformed payload can never succeed on retry, so 4xx stops the retry cycle.
+            self::InvalidPayload => [422, ['status' => 'error', 'message' => 'Invalid Payload']],
             self::Stale => [200, ['status' => 'ignored', 'message' => 'Stale IPN']],
             self::Duplicate => [200, ['status' => 'ignored', 'message' => 'Duplicate IPN']],
             self::Disabled => [200, ['status' => 'ignored', 'message' => 'IPN Handling Disabled']],

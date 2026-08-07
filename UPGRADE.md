@@ -5,8 +5,9 @@
 
 ### 1. Update calls to `handleIpn()` and `handleCallback()`
 
-Both methods now report the outcome through an `IpnOutcome` passed by reference as
-the first argument, and always signal failure with `IpnProcessingException`.
+Both methods now return an `IpnResult` value object instead of the payload, and no
+longer throw when a callback is rejected. A rejection is an expected outcome, not an
+exceptional condition.
 
 Before:
 
@@ -23,25 +24,34 @@ try {
 After:
 
 ```php
-use Paytabs\Laravel\Enums\IpnOutcome;
-use Paytabs\Laravel\Exceptions\IpnProcessingException;
+$result = Paytabs::getResultProcessor()->handleIpn(true);
 
-$outcome = IpnOutcome::HandlerFailed;
-
-try {
-    $ipn = Paytabs::getResultProcessor()->handleIpn($outcome, true);
-} catch (IpnProcessingException $e) {
+if (! $result->isProcessed()) {
     Log::warning('PayTabs callback not processed', [
-        'outcome' => $outcome->name,
-        'message' => $e->getMessage(),
+        'outcome' => $result->outcome->name,
+        'reason' => $result->reason,
     ]);
 
-    return $outcome->toResponse();
+    return $result->toResponse();
 }
+
+$ipn = $result->payload;
 ```
 
-`$outcome` distinguishes `InvalidSignature`, `Stale`, `Duplicate` and `HandlerFailed`.
-The underlying `InvalidSignatureException` is still available via `$e->getPrevious()`.
+`IpnResult` exposes:
+
+| Property / method | Type | Description |
+|---|---|---|
+| `$result->outcome` | `IpnOutcome` | What happened to the delivery |
+| `$result->payload` | `?Ipn` | The verified payload, non-null only when `Processed` |
+| `$result->cause` | `?Throwable` | The underlying error, when verification failed |
+| `$result->reason` | `?string` | Human readable rejection description |
+| `$result->isProcessed()` | `bool` | Whether the payload is present and verified |
+| `$result->toResponse()` | `JsonResponse` | The response to return to PayTabs |
+
+`$result->outcome` distinguishes `InvalidSignature`, `InvalidPayload`, `Stale`,
+`Duplicate` and `HandlerFailed`. The underlying `InvalidSignatureException` is
+available via `$result->cause`.
 
 `handleRedirect()` is unchanged and still throws `InvalidSignatureException` directly.
 
@@ -60,10 +70,16 @@ public function release(Ipn $payload): void
 
 ### 3. Review exception hierarchy changes
 
-`InvalidPayloadException` and `IdempotencyException` now extend `IpnProcessingException`
-rather than `RuntimeException`. Catching `IpnProcessingException` covers all three.
+`handleIpn()` and `handleCallback()` no longer throw for rejected callbacks, so there is
+nothing left to catch around them. `IdempotencyException` was removed; a duplicate delivery
+is now reported as `IpnOutcome::Duplicate`.
 
-`IdempotencyException::duplicateDelivery()` was removed; use `IdempotencyException::forIpn($ipn, $reason)`.
+`InvalidPayloadException` still extends `IpnProcessingException` and is thrown by
+`handleRedirect()`. When a callback payload is malformed, `handleCallback()` reports
+`IpnOutcome::InvalidPayload` and exposes the exception via `$result->cause`.
+
+A malformed payload now responds `422` instead of `500`, so PayTabs stops retrying a
+delivery that can never succeed.
 
 
 ### 4. Expect idempotency locks to reset once
