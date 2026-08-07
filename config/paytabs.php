@@ -55,24 +55,25 @@ return [
     |--------------------------------------------------------------------------
     |
     | Optional handler class for IPN processing.
-    | __invoke(...) is called only for verified payloads. The class must
+    | handleIpn() is called only for verified payloads. The class must
     | implement:
     | Paytabs\Laravel\Contracts\IpnHandlerInterface
     |
     */
-    'ipn_handler' => '',
+    'ipn_handler' => null,
 
     /*
     |--------------------------------------------------------------------------
     | PayTabs Result Profile Resolver
     |--------------------------------------------------------------------------
     |
-    | Optional invokable class to select a profile for validating
-    | PayTabs result callbacks (including IPN). The class must implement:
+    | Optional class to select a profile for validating
+    | PayTabs result callbacks (including IPN). resolveProfile() is called with
+    | the mapped payload. The class must implement:
     | Paytabs\Laravel\Contracts\ProfileResolverInterface
     |
     */
-    'ipn_profile_resolver' => '',
+    'ipn_profile_resolver' => null,
 
     /*
     |--------------------------------------------------------------------------
@@ -104,7 +105,7 @@ return [
     | with an error status to trigger upstream retries.
     |
     */
-    'ack_on_handler_exception' => true,
+    'ack_on_handler_exception' => false,
 
     /*
     |--------------------------------------------------------------------------
@@ -121,4 +122,7 @@ return [
 
     /** Time guard TTL in seconds. IPNs older than this are ignored. */
     'ipn_time_guard_ttl_seconds' => 3600,
+
+    /** Tolerance in seconds for IPNs timestamped ahead of server time. */
+    'ipn_time_guard_future_skew_seconds' => 300,
 ];

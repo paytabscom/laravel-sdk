@@ -193,8 +193,13 @@ class PaytabsCustomIpnHandler
         // Check for Idempotency: If the transaction has already been processed,
         // you can skip further processing to avoid duplicate actions.
 
-        // PayTabs provides a method to check if the IPN has already been processed.
-        Paytabs::getResultProcessor()->shouldProcessIpn($mappedPayload);
+        // shouldProcessIpn() acquires the lock as a side effect, so call it once
+        // per delivery and always act on the returned value.
+        if (! Paytabs::getResultProcessor()->shouldProcessIpn($mappedPayload)) {
+            Log::info('Skipping stale or duplicate IPN', ['tran_ref' => $mappedPayload->tran_ref]);
+
+            return;
+        }
 
         // Continue processing the IPN payload
 
@@ -218,28 +223,37 @@ class PaytabsCustomIpnHandler
 namespace App\Services;
 
 use Illuminate\Support\Facades\Log;
-use Paytabs\Laravel\Exceptions\IdempotencyException;
+use Paytabs\Laravel\Enums\IpnOutcome;
 use Paytabs\Laravel\Facades\Paytabs;
 use Paytabs\Sdk\Enums\TranStatus;
 use Paytabs\Sdk\Enums\TranType;
-use Paytabs\Sdk\Exceptions\InvalidSignatureException;
 use Paytabs\Sdk\Response\Payload\Payloads\Callbacks\Ipn;
 
 class PaytabsCustomIpnHandler
 {
     public function handleIpn()
     {
-        try {
-            $mappedPayload = Paytabs::getResultProcessor()->handleIpn(true);
-        } catch (InvalidSignatureException $e1) {
-            Log::alert('Invalid signature in PayTabs callback', ['message' => $e1->getMessage()]);
+        $result = Paytabs::getResultProcessor()->handleIpn(true);
 
-            return response(['message' => 'Invalid signature'], 401);
-        } catch (IdempotencyException $e2) {
-            Log::warning('Duplicate PayTabs callback', ['message' => $e2->getMessage()]);
+        if (! $result->isProcessed()) {
+            Log::warning('PayTabs callback ignored or failed', [
+                'outcome' => $result->outcome->name,
+                'reason' => $result->reason,
+            ]);
 
-            return response(['message' => 'Duplicate detected'], 200);
+            return $result->toResponse();
+
+            // OR Handle it your way:
+            // match ($result->outcome) {
+            //   IpnOutcome::InvalidSignature => ...,
+            //   IpnOutcome::InvalidPayload => ...,
+            //   IpnOutcome::Duplicate => ...,
+            //   IpnOutcome::Stale => ...,
+            //   IpnOutcome::HandlerFailed => ...,
+            // };
         }
+
+        $mappedPayload = $result->payload;
 
         // Continue processing the IPN payload
 
@@ -332,18 +346,28 @@ class DatabaseIdempotencyGuard implements IpnIdempotencyGuardInterface
         
         return true;
     }
+
+    public function release(Ipn $payload): void
+    {
+        // Called when your handler fails, so PayTabs can retry the delivery.
+        DB::table('ipn_locks')->where('key', $this->buildKey($payload))->delete();
+    }
     
     private function buildKey(Ipn $payload): string
     {
-        return sprintf(
-            'ipn:%d:%s:%s',
-            $payload->profile_id,
-            $payload->ipn_trace,
-            $payload->tran_ref
-        );
+        // Hashed so the key stays driver-safe and fixed length.
+        return hash('sha256', implode('|', [
+            $payload->profile_id ?? '',
+            $payload->tran_ref ?? '',
+            $payload->tran_type ?? '',
+            $payload->payment_result->transaction_time ?? '',
+        ]));
     }
 }
 ```
+
+> `release()` is required. A guard that only implements `acquire()` will fail to
+> instantiate, and a delivery whose handler throws would stay locked until the TTL expires.
 
 Register in your service provider:
 
@@ -365,6 +389,7 @@ Time Guard is a security feature that prevents replay attacks by rejecting IPNs 
 ```php
 'ipn_time_guard_enabled' => true,
 'ipn_time_guard_ttl_seconds' => 3600, // 1 hour
+'ipn_time_guard_future_skew_seconds' => 300, // tolerance for clock drift
 ```
 
 ### How It Works

@@ -7,7 +7,7 @@ namespace Paytabs\Laravel\Http\Controllers;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\Response;
+use Paytabs\Laravel\Enums\IpnOutcome;
 use Paytabs\Laravel\Services\PaytabsResultProcessor;
 
 class PaytabsResultController
@@ -28,31 +28,15 @@ class PaytabsResultController
      */
     public function ipn(): JsonResponse
     {
-        if (! $this->shouldHandleIpn()) {
-            Log::warning('IPN handling is disabled. See "paytabs.ipn_enabled" configuration value.');
+        $ipnHandlerEnabled = (bool) Config::get('paytabs.ipn_enabled', true);
+        if (! $ipnHandlerEnabled) {
+            Log::debug('IPN handling is disabled. See "paytabs.ipn_enabled" configuration value.');
 
-            return Response::json();
+            return IpnOutcome::Disabled->toResponse();
         }
 
-        $isVerified = $this->paytabsResultProcessor->dispatchIpn();
+        $ipnOutcome = $this->paytabsResultProcessor->dispatchIpn();
 
-        if (! $isVerified) {
-            return Response::json(
-                ['status' => 'error', 'message' => 'Invalid Signature'],
-                401,
-            );
-        }
-
-        return Response::json(['status' => 'received']);
-    }
-
-    /**
-     * Check if IPN handling is enabled in configuration.
-     *
-     * @return bool True if IPN handling is enabled
-     */
-    private function shouldHandleIpn(): bool
-    {
-        return (bool) Config::get('paytabs.ipn_enabled', true);
+        return $ipnOutcome->toResponse();
     }
 }
