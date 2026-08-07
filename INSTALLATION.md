@@ -177,6 +177,7 @@ Route::post('webhooks/paytabs', [PaytabsResultController::class, 'ipn'])
 > **Do not register the IPN route in `routes/web.php`.** The `web` middleware group
 > applies CSRF verification, and PayTabs cannot send a CSRF token, so every
 > notification would be rejected with a `419` response.
+> OR exclude the CSRF protection from the route.
 
 ### Idempotency Configuration
 
