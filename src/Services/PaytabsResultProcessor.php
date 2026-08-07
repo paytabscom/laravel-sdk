@@ -104,13 +104,13 @@ class PaytabsResultProcessor
         } catch (IpnProcessingException $e) {
             Log::error('PayTabs IPN verification failed.', [
                 'outcome' => $ipnOutcome->name,
-                'exception' => $e,
+                'exception' => $e->getMessage(),
             ]);
 
             return $ipnOutcome;
         } catch (Throwable $e) {
             Log::error('PayTabs IPN verification failed unexpectedly.', [
-                'exception' => $e,
+                'exception' => $e->getMessage(),
             ]);
 
             return IpnOutcome::HandlerFailed;
@@ -133,7 +133,7 @@ class PaytabsResultProcessor
         } catch (Throwable $e) {
             Log::error('PayTabs IPN handler execution failed.', [
                 'tran_ref' => $ipnData->tran_ref ?? null,
-                'exception' => $e,
+                'exception' => $e->getMessage(),
             ]);
 
             $this->idempotencyRelease($ipnData);
@@ -344,7 +344,7 @@ class PaytabsResultProcessor
             // Never mask the original handler failure that triggered the release.
             Log::error('PayTabs IPN idempotency release failed.', [
                 'tran_ref' => $ipn->tran_ref ?? null,
-                'exception' => $e,
+                'exception' => $e->getMessage(),
             ]);
 
             return;
