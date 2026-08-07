@@ -7,4 +7,4 @@ namespace Paytabs\Laravel\Exceptions;
 /**
  * Thrown when the same IPN is delivered more than once within the idempotency window.
  */
-class IdempotencyException extends CallbackProcessingException {}
+class IdempotencyException extends IpnProcessingException {}

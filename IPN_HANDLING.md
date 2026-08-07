@@ -224,7 +224,7 @@ namespace App\Services;
 
 use Illuminate\Support\Facades\Log;
 use Paytabs\Laravel\Enums\IpnOutcome;
-use Paytabs\Laravel\Exceptions\CallbackProcessingException;
+use Paytabs\Laravel\Exceptions\IpnProcessingException;
 use Paytabs\Laravel\Facades\Paytabs;
 use Paytabs\Sdk\Enums\TranStatus;
 use Paytabs\Sdk\Enums\TranType;
@@ -238,7 +238,7 @@ class PaytabsCustomIpnHandler
 
         try {
             $mappedPayload = Paytabs::getResultProcessor()->handleIpn($outcome, true);
-        } catch (CallbackProcessingException $e) {
+        } catch (IpnProcessingException $e) {
             Log::warning('PayTabs callback ignored or failed', [
                 'outcome' => $outcome->name,
                 'message' => $e->getMessage(),
