@@ -215,7 +215,11 @@ class PaytabsResultProcessor
     /**
      * Handle a browser redirect callback.
      *
+     * @param  IpnOutcome  $ipnOutcome  Receives the outcome by reference, set on both success and failure
      * @return Browser The verified browser callback payload
+     *
+     * @throws CallbackProcessingException If verification or a guard rejects the delivery
+     * @throws InvalidPayloadException If the payload is not an IPN payload
      */
     public function handleRedirect(
         IpnOutcome &$ipnOutcome = IpnOutcome::HandlerFailed,
