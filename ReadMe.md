@@ -143,8 +143,8 @@ The package configuration file `config/paytabs.php` includes the following optio
 | `load_routes` | Load package routes automatically | `true` |
 | `ipn_enabled` | Enable IPN handling | `true` |
 | `ipn_route_path` | Custom IPN route path | `paytabs/ipn` |
-| `ipn_route_middleware` | Middleware for IPN route | `['api']` |
-| `ipn_handler` | Custom IPN handler class | - |
+| `ipn_route_middleware` | Middleware for IPN route | `['api', 'throttle:60,1']` |
+| `ipn_handler` | Required IPN handler class | - |
 | `ipn_profile_resolver` | Custom profile resolver class | - |
 | `ipn_idempotency_enabled` | Enable IPN idempotency checks | `true` |
 | `ipn_idempotency_cache_store` | Cache store for idempotency | `null` (default) |

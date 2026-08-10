@@ -108,7 +108,21 @@ deduplication across workers.
 ```
 
 
-### 5. Implement `release()` on custom idempotency guards
+### 5. Review the IPN route middleware
+
+`ipn_route_middleware` now defaults to `['api', 'throttle:60,1']`. Laravel 11+ only rate limits
+the `api` group when the application calls `->throttleApi()` in `bootstrap/app.php`, so the
+previous default left this public endpoint unthrottled.
+
+If you publish the config file, add the throttle yourself. Raise the limit if your transaction
+volume needs it, and keep in mind PayTabs retries anything it receives above `429`.
+
+```php
+'ipn_route_middleware' => ['api', 'throttle:120,1'],
+```
+
+
+### 6. Implement `release()` on custom idempotency guards
 
 `IpnIdempotencyGuardInterface` now requires a `release()` method, called when your
 handler throws so PayTabs can retry the delivery.
@@ -120,7 +134,7 @@ public function release(Ipn $payload): void
 }
 ```
 
-### 6. Review exception hierarchy changes
+### 7. Review exception hierarchy changes
 
 `handleIpn()` and `handleCallback()` no longer throw for rejected callbacks, so there is
 nothing left to catch around them.
@@ -138,14 +152,14 @@ A malformed payload now responds `403` instead of `500`. PayTabs abandons a deli
 `403`, `404` or `405`, so `403` is what stops it retrying a body that can never become valid.
 
 
-### 7. Expect idempotency locks to reset once
+### 8. Expect idempotency locks to reset once
 
 The idempotency cache key format changed and is now hashed. Locks held by a previous
 version are not recognised after deploying. Deploy during a quiet period, or allow
 one idempotency TTL (default 180 seconds) to elapse before switching traffic over.
 
 
-### 8. Move the IPN route out of `routes/web.php`
+### 9. Move the IPN route out of `routes/web.php`
 
 The `web` middleware group applies CSRF verification and rejects PayTabs notifications with a `419` response.
 If you registered the route manually:

@@ -49,8 +49,10 @@ return [
     /** Middleware stack applied to the package IPN route.
      * api middleware is recommended to avoid CSRF checks and session state.
      * Note: api is a middleware, not a route prefix, so the route will still be /paytabs/ipn.
+     * The throttle is explicit because Laravel 11+ only rate limits the api group
+     * when the application calls ->throttleApi(), leaving this public endpoint open.
      */
-    'ipn_route_middleware' => ['api'],
+    'ipn_route_middleware' => ['api', 'throttle:60,1'],
 
     /*
     |--------------------------------------------------------------------------

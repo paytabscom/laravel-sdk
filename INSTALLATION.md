@@ -100,7 +100,7 @@ return [
     // IPN Configuration
     'ipn_enabled' => true,
     'ipn_route_path' => 'paytabs/ipn',
-    'ipn_route_middleware' => ['api'],
+    'ipn_route_middleware' => ['api', 'throttle:60,1'],
     'ipn_handler' => null,
     'ipn_profile_resolver' => null,
 
@@ -148,13 +148,15 @@ This will change the route from `/paytabs/ipn` to `/webhooks/paytabs`.
 
 #### IPN Middleware
 
-Add custom middleware to the IPN route:
+The default stack is `['api', 'throttle:60,1']`. The throttle is explicit because Laravel 11+
+only rate limits the `api` group when the application calls `->throttleApi()`, which would
+otherwise leave this public endpoint open.
+
+Raise the limit if your transaction volume needs it:
 
 ```php
-'ipn_route_middleware' => ['api', 'throttle:60,1'],
+'ipn_route_middleware' => ['api', 'throttle:120,1'],
 ```
-
-This adds rate limiting (60 requests per minute) to the IPN endpoint.
 
 #### Disable Automatic Route Loading
 

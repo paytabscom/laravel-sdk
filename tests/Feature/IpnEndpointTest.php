@@ -116,6 +116,18 @@ final class IpnEndpointTest extends TestCase
         $this->get('/paytabs/ipn')->assertMethodNotAllowed();
     }
 
+    public function test_the_route_is_rate_limited_by_default(): void
+    {
+        $middleware = Route::getRoutes()->getByName('paytabs.ipn')?->gatherMiddleware() ?? [];
+
+        // Laravel 11+ leaves the api group unthrottled unless the app calls ->throttleApi(),
+        // so this public endpoint ships with an explicit limit.
+        $this->assertNotEmpty(
+            array_filter($middleware, fn ($m) => is_string($m) && str_starts_with($m, 'throttle')),
+            'Expected a throttle middleware on the IPN route.',
+        );
+    }
+
     public function test_the_endpoint_is_not_behind_csrf_verification(): void
     {
         $this->app['config']->set('paytabs.ipn_handler', EndpointRecordingHandler::class);
