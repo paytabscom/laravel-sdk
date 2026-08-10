@@ -114,10 +114,14 @@ public function release(Ipn $payload): void
 ### 6. Review exception hierarchy changes
 
 `handleIpn()` and `handleCallback()` no longer throw for rejected callbacks, so there is
-nothing left to catch around them. `IdempotencyException` was removed; a duplicate delivery
-is now reported as `IpnOutcome::Duplicate`.
+nothing left to catch around them.
 
-`InvalidPayloadException` still extends `IpnProcessingException` and is thrown by
+`IdempotencyException` and `IpnProcessingException` were removed. A duplicate delivery is
+reported as `IpnOutcome::Duplicate`, and there is no longer a base exception to catch: if you
+wrote `catch (IpnProcessingException $e)` around a callback call, delete it and branch on
+`$result->outcome` instead.
+
+`InvalidPayloadException` extends `RuntimeException` and is thrown by
 `handleRedirect()`. When a callback payload is malformed, `handleCallback()` reports
 `IpnOutcome::InvalidPayload` and exposes the exception via `$result->cause`.
 

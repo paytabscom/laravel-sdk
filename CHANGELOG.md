@@ -15,8 +15,7 @@ See [UPGRADE.md](UPGRADE.md) for migration steps.
 - **`paytabs.ipn_handler` is now required.** A delivery that reaches the endpoint with no handler configured responds `500` instead of silently acknowledging with `200`.
 - `IpnOutcome::InvalidSignature` now responds `403` instead of `401`. There is no authentication challenge, so `403` is the accurate status.
 - `IpnIdempotencyGuardInterface` now requires `release(Ipn $payload): void`. Custom guards must implement it.
-- `InvalidPayloadException` now extends `IpnProcessingException` instead of `RuntimeException`.
-- `IdempotencyException` was removed. A duplicate delivery is reported as `IpnOutcome::Duplicate`.
+- `IdempotencyException` and `IpnProcessingException` were removed. Rejected deliveries are reported as `IpnOutcome` cases rather than exceptions, so there is no longer a base exception to catch. `InvalidPayloadException` now extends `RuntimeException` directly.
 - `PaytabsResolver::resolveIpnHandler()` returns `IpnHandlerInterface` rather than `?IpnHandlerInterface`, and throws `InvalidConfigurationException` when the handler is missing or does not implement the contract.
 - The idempotency cache key format changed. In-flight locks from a previous version are not recognized after upgrade.
 - A `null` cache store can no longer be used for IPN idempotency. It silently classified every delivery as a duplicate, so it now throws `InvalidConfigurationException`.
@@ -25,8 +24,7 @@ See [UPGRADE.md](UPGRADE.md) for migration steps.
 - Updated service binding to **scoped** lifecycle for safer request/job isolation.
 - `IpnOutcome` enum to standardize callback/IPN response outcomes.
 - `IpnResult` value object carrying the outcome, the verified payload, the failure cause and a rejection reason in a single return value.
-- `IpnOutcome::InvalidPayload`, responding `422` so PayTabs stops retrying a delivery that can never succeed.
-- `IpnProcessingException` as the single base exception for callbacks that were received but not processed.
+- `IpnOutcome::InvalidPayload`, responding `422`, Stop retrying a delivery that can never succeed.
 - Added dedicated `InvalidPayloadException` for callback payload type and mapping failures.
 - `IpnIdempotencyGuardInterface::release()` so a failed handler frees the lock and PayTabs can retry.
 - `ipn_time_guard_future_skew_seconds` configuration options.

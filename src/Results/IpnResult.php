@@ -57,16 +57,6 @@ final class IpnResult
     }
 
     /**
-     * Get the verified payload, or null when the delivery was not processed.
-     *
-     * @return Ipn|null The verified payload
-     */
-    public function payload(): ?Ipn
-    {
-        return $this->payload;
-    }
-
-    /**
      * Map the outcome to the JSON response returned to PayTabs.
      *
      * @return JsonResponse The response for this result
