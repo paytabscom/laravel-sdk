@@ -57,9 +57,12 @@ return [
     | IPN Handler
     |--------------------------------------------------------------------------
     |
-    | Handler class for IPN/Callback processing.
+    | Required handler class for IPN/Callback processing.
     | handleIpn() is called only for verified payloads. The class must implement:
     | Paytabs\Laravel\Contracts\IpnHandlerInterface
+    |
+    | Leaving this unset makes the IPN endpoint respond 500, so PayTabs retries
+    | rather than treating an unprocessed notification as delivered.
     |
     */
     'ipn_handler' => null,
@@ -88,7 +91,11 @@ return [
     */
     'ipn_idempotency_enabled' => true,
 
-    /** Optional cache store name, null uses default store. */
+    /**
+     * Optional cache store name, null uses the default store.
+     * Must be shared and persistent. The "null" driver is rejected, and "array"
+     * is per-process so it does not deduplicate across workers.
+     */
     'ipn_idempotency_cache_store' => null,
 
     /** Key prefix used for idempotency lock keys. */

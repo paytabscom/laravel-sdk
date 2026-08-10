@@ -12,10 +12,14 @@ See [UPGRADE.md](UPGRADE.md) for migration steps.
 ### Breaking Changes
 - `PaytabsResultProcessor::handleIpn()` and `handleCallback()` now return an `IpnResult` value object instead of the `Ipn` payload. The payload is available as `$result->payload`.
 - `handleIpn()` and `handleCallback()` no longer throw for rejected callbacks. Invalid signature, malformed payload, stale and duplicate deliveries are returned as `IpnResult` outcomes, with the original exception on `$result->cause`.
+- **`paytabs.ipn_handler` is now required.** A delivery that reaches the endpoint with no handler configured responds `500` instead of silently acknowledging with `200`.
+- `IpnOutcome::InvalidSignature` now responds `403` instead of `401`. There is no authentication challenge, so `403` is the accurate status.
 - `IpnIdempotencyGuardInterface` now requires `release(Ipn $payload): void`. Custom guards must implement it.
 - `InvalidPayloadException` now extends `IpnProcessingException` instead of `RuntimeException`.
 - `IdempotencyException` was removed. A duplicate delivery is reported as `IpnOutcome::Duplicate`.
+- `PaytabsResolver::resolveIpnHandler()` returns `IpnHandlerInterface` rather than `?IpnHandlerInterface`, and throws `InvalidConfigurationException` when the handler is missing or does not implement the contract.
 - The idempotency cache key format changed. In-flight locks from a previous version are not recognized after upgrade.
+- A `null` cache store can no longer be used for IPN idempotency. It silently classified every delivery as a duplicate, so it now throws `InvalidConfigurationException`.
 
 ### Added
 - Updated service binding to **scoped** lifecycle for safer request/job isolation.
@@ -30,12 +34,17 @@ See [UPGRADE.md](UPGRADE.md) for migration steps.
 
 ### Fixed
 - A malformed IPN payload responded `500`, which told PayTabs to keep retrying a delivery that could never succeed. It now responds `422`.
-- Invalid signature responses logged the server key prefix, letting anyone with the endpoint URL force key material into application logs.
+- Invalid signature responses leaked the first ten characters of the server key into application logs, via both the log context and the thrown exception message. An unauthenticated request to the public endpoint was enough to trigger it. Logs now carry only a non-reversible fingerprint, and the exception carries no key material.
+- A missing `paytabs.ipn_handler` acknowledged every notification with `200` while doing nothing, so PayTabs never retried and the payment was silently lost.
+- The IPN time guard parsed `transaction_time` in the application timezone, so any non-UTC `APP_TIMEZONE` shifted the freshness window and could reject every genuine delivery as stale. Timestamps are now parsed as UTC against a strict RFC 3339 format.
 - Callbacks are now read from the Laravel request rather than `php://input` and `getallheaders()`, which fixes IPN handling under Laravel Octane.
 - Payload access is guarded throughout, so an IPN missing `payment_result`, `ipn_trace` or `profile_id` no longer raises a PHP `Error`.
+- A profile resolver misconfiguration surfaced as a generic verification failure. It is now reported distinctly, with the configuration error on `$result->cause`.
 
 ### Changed
 - `handleIpn()` now applies the idempotency guard by default, matching its documentation.
+- Signature verification and the delivery guards were split out of `PaytabsResultProcessor` into `CallbackVerifier` and `DeliveryGuards`. The processor's public API is unchanged.
+- Multi-tenant `profile_id` validation now happens inside the PayTabs PHP SDK: `isGenuine()` rejects a callback whose payload `profile_id` does not match the resolved profile.
 - Improved callback processing by reusing initialized callback result objects.
 - Updated `ack_on_handler_exception` default to `false`.
 - Set default IPN handler and profile resolver configuration values to `null`.

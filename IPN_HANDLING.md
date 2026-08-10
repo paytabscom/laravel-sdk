@@ -168,24 +168,32 @@ class PaytabsCustomIpnHandler
 {
     public function handleIpn(): void
     {
-        $ipnRequest = Callback::init();
-        // In Octane (or similar) env:
-        // $ipnRequest = Callback::initWith(
-        //   request()->getContent(),
-        //   array_map(fn ($v) => (string) ($v[0] ?? ''), request()->headers->all()),
-        // );
+        // Read from the framework request. Callback::init() uses php://input and
+        // getallheaders(), which are unavailable or already consumed under Octane.
+        $ipnRequest = Callback::initWith(
+            request()->getContent(),
+            array_map(fn ($v) => (string) ($v[0] ?? ''), request()->headers->all()),
+        );
 
         // Set the profile for the IPN validation
         $ipnRequest->setProfile(Paytabs::getProfile());
 
-        // Validate the IPN request signature
+        // Validates the signature and that the payload belongs to this profile
         $isGenuine = $ipnRequest->isGenuine();
         if (! $isGenuine) {
             throw new InvalidSignatureException();
         }
 
+        $payload = $ipnRequest->getPayload();
+
+        if ($payload === null) {
+            Log::error('Failed to map payload from transaction result', []);
+
+            return;
+        }
+
         /** @var Ipn|Browser $mappedPayload */
-        $mappedPayload = $ipnRequest->getPayload()->getMapped();
+        $mappedPayload = $payload->getMapped();
 
         if ($mappedPayload instanceof Browser) {
             Log::error('Expected IPN type, not Browser type', []);
@@ -494,6 +502,24 @@ Add to `config/paytabs.php`:
 ### Signature Validation
 
 The package automatically validates PayTabs signatures for all IPN callbacks. Invalid signatures are rejected with a 403 response.
+
+Verification also rejects a payload whose `profile_id` does not match the resolved profile, so a
+callback signed for one merchant cannot be replayed against another in a multi-profile setup.
+
+Rejection logs never contain key material. They carry a truncated SHA-256 fingerprint of the
+server key prefix, which is enough to tell two profiles apart but cannot be reversed.
+
+### Response Codes
+
+| Outcome | Status | PayTabs behaviour |
+|---|---|---|
+| `Processed` | 200 | Delivered, no retry |
+| `Stale` | 200 | Ignored, no retry |
+| `Duplicate` | 200 | Ignored, no retry |
+| `Disabled` | 200 | Ignored, no retry |
+| `InvalidSignature` | 403 | Rejected |
+| `InvalidPayload` | 422 | Rejected, retrying cannot help |
+| `HandlerFailed` | 500 | Retried, or 200 when `ack_on_handler_exception` is true |
 
 ### IPN Endpoint Security
 

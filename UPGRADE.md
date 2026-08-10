@@ -53,10 +53,53 @@ $ipn = $result->payload;
 `Duplicate` and `HandlerFailed`. The underlying `InvalidSignatureException` is
 available via `$result->cause`.
 
-`handleRedirect()` is unchanged and still throws `InvalidSignatureException` directly.
+`handleRedirect()` still throws rather than returning an outcome. It can raise
+`InvalidSignatureException`, `InvalidPayloadException` (unmappable payload, or an IPN
+delivered to the redirect endpoint) and `InvalidConfigurationException` (misconfigured
+profile resolver).
 
 
-### 2. Implement `release()` on custom idempotency guards
+### 2. Configure an IPN handler
+
+`paytabs.ipn_handler` is no longer optional. Previously a missing handler logged a warning
+and still answered `200`, so PayTabs treated the notification as delivered and never retried
+it. That silently lost every payment on a misconfigured deployment.
+
+A delivery with no handler configured now responds `500`, so PayTabs retries while you fix
+the configuration.
+
+```php
+// config/paytabs.php
+'ipn_handler' => \App\Services\PaytabsIpnHandler::class,
+```
+
+The class must implement `Paytabs\Laravel\Contracts\IpnHandlerInterface`. `PaytabsResolver::resolveIpnHandler()`
+now returns `IpnHandlerInterface` rather than `?IpnHandlerInterface`, and throws
+`InvalidConfigurationException` when the handler is missing or does not implement the contract.
+
+
+### 3. Update assertions on the invalid-signature status code
+
+`IpnOutcome::InvalidSignature` now responds `403` instead of `401`. The endpoint issues no
+authentication challenge, so `401` was the wrong status. Update any test or monitoring rule
+that asserts on `401`.
+
+
+### 4. Do not use the `null` cache store for idempotency
+
+`Illuminate\Cache\NullStore` never stores a value, so `acquire()` always reported a duplicate
+and every IPN was ignored with a `200`. That configuration now throws
+`InvalidConfigurationException` instead of failing silently.
+
+Use a shared, persistent store in production. The `array` driver is per-process and gives no
+deduplication across workers.
+
+```php
+'ipn_idempotency_cache_store' => 'redis',
+```
+
+
+### 5. Implement `release()` on custom idempotency guards
 
 `IpnIdempotencyGuardInterface` now requires a `release()` method, called when your
 handler throws so PayTabs can retry the delivery.
@@ -68,7 +111,7 @@ public function release(Ipn $payload): void
 }
 ```
 
-### 3. Review exception hierarchy changes
+### 6. Review exception hierarchy changes
 
 `handleIpn()` and `handleCallback()` no longer throw for rejected callbacks, so there is
 nothing left to catch around them. `IdempotencyException` was removed; a duplicate delivery
@@ -82,14 +125,14 @@ A malformed payload now responds `422` instead of `500`, so PayTabs stops retryi
 delivery that can never succeed.
 
 
-### 4. Expect idempotency locks to reset once
+### 7. Expect idempotency locks to reset once
 
 The idempotency cache key format changed and is now hashed. Locks held by a previous
 version are not recognised after deploying. Deploy during a quiet period, or allow
 one idempotency TTL (default 180 seconds) to elapse before switching traffic over.
 
 
-### 5. Move the IPN route out of `routes/web.php`
+### 8. Move the IPN route out of `routes/web.php`
 
 The `web` middleware group applies CSRF verification and rejects PayTabs notifications with a `419` response.
 If you registered the route manually:

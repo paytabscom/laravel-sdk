@@ -60,16 +60,19 @@ abstract class PaytabsResolver
      * Resolve the IPN handler from configuration.
      *
      * @param  Container  $container  The Laravel container
-     * @return IpnHandlerInterface|null The handler instance or null if not configured
+     * @return IpnHandlerInterface The configured handler instance
      *
-     * @throws \InvalidArgumentException If handler class does not implement the interface
+     * @throws InvalidConfigurationException If no handler is configured, or it does not implement the interface
      */
-    public static function resolveIpnHandler(Container $container): ?IpnHandlerInterface
+    public static function resolveIpnHandler(Container $container): IpnHandlerInterface
     {
         $handlerClass = trim((string) Config::get('paytabs.ipn_handler', ''));
 
+        // Acknowledging an IPN without a handler would silently discard the payment notification.
         if ($handlerClass === '') {
-            return null;
+            Log::error('No PayTabs IPN handler configured. See the "paytabs.ipn_handler" configuration value and the IpnHandlerInterface contract.');
+
+            throw InvalidConfigurationException::missing('paytabs.ipn_handler');
         }
 
         if (! is_a($handlerClass, IpnHandlerInterface::class, true)) {

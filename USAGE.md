@@ -154,8 +154,14 @@ $mappedPayload->cart_id;
 
 After payment completion, PayTabs redirects back to your configured return URL. Handle the callback:
 
+The package does not register a route for this. Point your PayTabs return URL at your own
+route and call `handleRedirect()` from it.
+
 ```php
+use Illuminate\Support\Facades\Log;
+use Paytabs\Laravel\Exceptions\InvalidPayloadException;
 use Paytabs\Laravel\Facades\Paytabs;
+use Paytabs\Sdk\Exceptions\InvalidSignatureException;
 
 public function handleReturn()
 {
@@ -163,11 +169,11 @@ public function handleReturn()
 
     try {
         $result = Paytabs::getResultProcessor()->handleRedirect();
-    } catch (InvalidSignatureException $e1) {
+    } catch (InvalidSignatureException|InvalidPayloadException $e1) {
         Log::alert($e1->getMessage());
 
         return redirect()->route('orders.index')
-            ->withErrors(['message' => 'Invalid signature in payment response.']);
+            ->withErrors(['message' => 'Invalid payment response.']);
     }
 
     Log::info('PayTabs redirect processed', [
