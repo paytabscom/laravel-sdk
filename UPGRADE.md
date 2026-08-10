@@ -17,7 +17,7 @@ use Paytabs\Sdk\Exceptions\InvalidSignatureException;
 try {
     $ipn = Paytabs::getResultProcessor()->handleIpn(true);
 } catch (InvalidSignatureException $e) {
-    return response()->json(['status' => 'error'], 401);
+    return response()->json(['status' => 'error'], 403);
 }
 ```
 

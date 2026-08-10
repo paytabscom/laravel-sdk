@@ -46,7 +46,10 @@ return [
     /** Customizable IPN callback route path. */
     'ipn_route_path' => 'paytabs/ipn',
 
-    /** Middleware stack applied to the package IPN route. */
+    /** Middleware stack applied to the package IPN route.
+     * api middleware is recommended to avoid CSRF checks and session state.
+     * Note: api is a middleware, not a route prefix, so the route will still be /paytabs/ipn.
+     */
     'ipn_route_middleware' => ['api'],
 
     /*
@@ -54,9 +57,8 @@ return [
     | IPN Handler
     |--------------------------------------------------------------------------
     |
-    | Optional handler class for IPN processing.
-    | handleIpn() is called only for verified payloads. The class must
-    | implement:
+    | Handler class for IPN/Callback processing.
+    | handleIpn() is called only for verified payloads. The class must implement:
     | Paytabs\Laravel\Contracts\IpnHandlerInterface
     |
     */

@@ -12,6 +12,7 @@ use Illuminate\Support\Facades\Log;
 use JsonException;
 use Paytabs\Laravel\Contracts\IpnIdempotencyGuardInterface;
 use Paytabs\Laravel\Enums\IpnOutcome;
+use Paytabs\Laravel\Exceptions\InvalidConfigurationException;
 use Paytabs\Laravel\Exceptions\InvalidPayloadException;
 use Paytabs\Laravel\Paytabs;
 use Paytabs\Laravel\Results\IpnResult;
@@ -167,6 +168,8 @@ class PaytabsResultProcessor
             return IpnResult::rejected(IpnOutcome::InvalidPayload, $e->getMessage(), $e);
         } catch (JsonException $e) {
             return IpnResult::rejected(IpnOutcome::InvalidPayload, 'PayTabs callback body is not valid JSON.', $e);
+        } catch (InvalidConfigurationException $e) {
+            return IpnResult::rejected(IpnOutcome::HandlerFailed, 'PayTabs callback profile resolver misconfiguration.', $e);
         } catch (Throwable $e) {
             return IpnResult::rejected(IpnOutcome::HandlerFailed, 'PayTabs callback verification failed.', $e);
         }
@@ -216,6 +219,8 @@ class PaytabsResultProcessor
      * @return Browser|Ipn The verified payload
      *
      * @throws InvalidSignatureException If signature validation fails
+     * @throws InvalidPayloadException If the payload cannot be mapped to a Browser or Ipn
+     * @throws InvalidConfigurationException If the configured profile resolver does not implement the interface
      */
     private function getTransactionResult(
         AbstractTransactionResult $transactionResult,
@@ -245,7 +250,7 @@ class PaytabsResultProcessor
                 'server_key_fingerprint' => substr(hash('sha256', $resolvedProfile->getServerKeyPrefix()), 0, 8),
             ]);
 
-            throw InvalidSignatureException::mismatch($resolvedProfile->getServerKeyPrefix());
+            throw new InvalidSignatureException;
         }
 
         return $mappedPayload;
@@ -266,7 +271,7 @@ class PaytabsResultProcessor
         if ($ipnHandler === null) {
             Log::warning('No IPN handler configured. See "paytabs.ipn_handler" configuration value and the interface IpnHandlerInterface.');
 
-            return;
+            throw InvalidConfigurationException::missing('paytabs.ipn_handler');
         }
 
         $ipnHandler->handleIpn($transactionResult, $mappedPayload);
@@ -379,9 +384,13 @@ class PaytabsResultProcessor
             return 'missing transaction time';
         }
 
-        // PayTabs always sends ISO 8601 in UTC, so the offset in the string decides the instant.
+        // PayTabs always sends RFC3339
+        // Sample: 2026-08-10T06:30:37Z
         try {
-            $ipnTime = Carbon::parse($rawTime);
+            $ipnTime = Carbon::createFromFormat('Y-m-d\TH:i:s\Z', $rawTime, 'UTC');
+            if (! $ipnTime) {
+                return 'invalid transaction time format';
+            }
         } catch (Throwable) {
             return 'unparsable transaction time';
         }

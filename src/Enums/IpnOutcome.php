@@ -28,7 +28,7 @@ enum IpnOutcome
         // Acknowledged deliveries must return 2xx, otherwise PayTabs keeps retrying.
         [$statusCode, $payload] = match ($this) {
             self::Processed => [200, ['status' => 'received']],
-            self::InvalidSignature => [401, ['status' => 'error', 'message' => 'Invalid Signature']],
+            self::InvalidSignature => [403, ['status' => 'error', 'message' => 'Invalid Signature']],
             // A malformed payload can never succeed on retry, so 4xx stops the retry cycle.
             self::InvalidPayload => [422, ['status' => 'error', 'message' => 'Invalid Payload']],
             self::Stale => [200, ['status' => 'ignored', 'message' => 'Stale IPN']],

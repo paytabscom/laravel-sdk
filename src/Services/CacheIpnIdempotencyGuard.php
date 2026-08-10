@@ -4,10 +4,13 @@ declare(strict_types=1);
 
 namespace Paytabs\Laravel\Services;
 
+use Illuminate\Cache\NullStore;
 use Illuminate\Contracts\Cache\Factory as CacheFactory;
 use Illuminate\Contracts\Cache\Repository;
 use Illuminate\Support\Facades\Config;
+use Illuminate\Support\Facades\Log;
 use Paytabs\Laravel\Contracts\IpnIdempotencyGuardInterface;
+use Paytabs\Laravel\Exceptions\InvalidConfigurationException;
 use Paytabs\Sdk\Response\Payload\Payloads\Callbacks\Ipn;
 
 class CacheIpnIdempotencyGuard implements IpnIdempotencyGuardInterface
@@ -52,9 +55,19 @@ class CacheIpnIdempotencyGuard implements IpnIdempotencyGuardInterface
     {
         $storeName = trim((string) Config::get('paytabs.ipn_idempotency_cache_store', ''));
 
-        return $storeName === ''
+        $store = $storeName === ''
             ? $this->cacheFactory->store()
             : $this->cacheFactory->store($storeName);
+
+        if ($store->getStore() instanceof NullStore) {
+            Log::error(\sprintf(
+                'PayTabs IPN idempotency cache store [%s] is not configured or is a NullStore.',
+                $storeName,
+            ));
+            throw InvalidConfigurationException::missing('paytabs.ipn_idempotency_cache_store');
+        }
+
+        return $store;
     }
 
     /**

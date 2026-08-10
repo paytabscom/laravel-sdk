@@ -169,6 +169,11 @@ class PaytabsCustomIpnHandler
     public function handleIpn(): void
     {
         $ipnRequest = Callback::init();
+        // In Octane (or similar) env:
+        // $ipnRequest = Callback::initWith(
+        //   request()->getContent(),
+        //   array_map(fn ($v) => (string) ($v[0] ?? ''), request()->headers->all()),
+        // );
 
         // Set the profile for the IPN validation
         $ipnRequest->setProfile(Paytabs::getProfile());
@@ -176,7 +181,7 @@ class PaytabsCustomIpnHandler
         // Validate the IPN request signature
         $isGenuine = $ipnRequest->isGenuine();
         if (! $isGenuine) {
-            throw InvalidSignatureException::mismatch(Paytabs::getProfile()->getServerKeyPrefix());
+            throw new InvalidSignatureException();
         }
 
         /** @var Ipn|Browser $mappedPayload */
@@ -488,7 +493,7 @@ Add to `config/paytabs.php`:
 
 ### Signature Validation
 
-The package automatically validates PayTabs signatures for all IPN callbacks. Invalid signatures are rejected with a 401 response.
+The package automatically validates PayTabs signatures for all IPN callbacks. Invalid signatures are rejected with a 403 response.
 
 ### IPN Endpoint Security
 

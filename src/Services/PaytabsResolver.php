@@ -6,8 +6,10 @@ namespace Paytabs\Laravel\Services;
 
 use Illuminate\Contracts\Container\Container;
 use Illuminate\Support\Facades\Config;
+use Illuminate\Support\Facades\Log;
 use Paytabs\Laravel\Contracts\IpnHandlerInterface;
 use Paytabs\Laravel\Contracts\ProfileResolverInterface;
+use Paytabs\Laravel\Exceptions\InvalidConfigurationException;
 use Paytabs\Sdk\Profile\Profile;
 use Paytabs\Sdk\Response\Payload\Payloads\Callbacks\Browser;
 use Paytabs\Sdk\Response\Payload\Payloads\Callbacks\Ipn;
@@ -31,14 +33,24 @@ abstract class PaytabsResolver
             return null;
         }
 
-        $resolver = $container->make($resolverClass);
-
-        if (! $resolver instanceof ProfileResolverInterface) {
-            throw new \InvalidArgumentException(\sprintf(
-                'PayTabs IPN profile resolver [%s] must implement %s.',
+        if (! is_a($resolverClass, ProfileResolverInterface::class, true)) {
+            Log::error(\sprintf(
+                'PayTabs Profile resolver [%s] must implement %s.',
                 $resolverClass,
                 ProfileResolverInterface::class,
             ));
+            throw InvalidConfigurationException::missing('paytabs.ipn_profile_resolver');
+        }
+
+        $resolver = $container->make($resolverClass);
+
+        if (! $resolver instanceof ProfileResolverInterface) {
+            Log::error(\sprintf(
+                'PayTabs Profile resolver [%s] must implement %s.',
+                $resolverClass,
+                ProfileResolverInterface::class,
+            ));
+            throw InvalidConfigurationException::missing('paytabs.ipn_profile_resolver');
         }
 
         return $resolver->resolveProfile($mappedPayload);
@@ -60,14 +72,24 @@ abstract class PaytabsResolver
             return null;
         }
 
+        if (! is_a($handlerClass, IpnHandlerInterface::class, true)) {
+            Log::error(\sprintf(
+                'PayTabs IPN resolver [%s] must implement %s.',
+                $handlerClass,
+                IpnHandlerInterface::class,
+            ));
+            throw InvalidConfigurationException::missing('paytabs.ipn_handler');
+        }
+
         $handler = $container->make($handlerClass);
 
         if (! $handler instanceof IpnHandlerInterface) {
-            throw new \InvalidArgumentException(\sprintf(
+            Log::error(\sprintf(
                 'PayTabs IPN handler [%s] must implement %s.',
                 $handlerClass,
                 IpnHandlerInterface::class,
             ));
+            throw InvalidConfigurationException::missing('paytabs.ipn_handler');
         }
 
         return $handler;

@@ -7,7 +7,7 @@ This guide provides detailed instructions for installing and configuring the Pay
 Before installing the package, ensure your system meets the following requirements:
 
 - **PHP**: >= 8.1 (>= 8.3 when using Laravel 13)
-- **Laravel**: >= 11.0
+- **Laravel**: >= 10.0
 - **Composer**
 - **Extensions**: 
   - `curl` (required by PayTabs PHP SDK)

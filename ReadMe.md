@@ -17,7 +17,7 @@ Official PayTabs Laravel SDK for Payment Gateway integrations. This package prov
 ## Requirements
 
 - PHP >= 8.1 (>= 8.3 when using Laravel 13)
-- Laravel >= 11.0
+- Laravel >= 10.0
 - PayTabs PHP SDK v3
 
 ## Installation

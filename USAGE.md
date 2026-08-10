@@ -189,6 +189,19 @@ public function handleReturn()
 ### Switching Profiles Dynamically
 
 ```php
+// config/paytabs.php
+
+return [
+    'saudi' => [
+        'profile_id' => 123,
+        'server_key' => 'SERVER-KEY',
+    ]
+
+    // ...
+];
+```
+
+```php
 use Paytabs\Laravel\Facades\Paytabs;
 use Paytabs\Sdk\Profile\EndpointsFactory;
 use Paytabs\Sdk\Profile\ProfilesFactory;
@@ -347,7 +360,7 @@ Check the status of a previous transaction:
 
 ```php
 use Paytabs\Sdk\Request\Payload\PayloadsFactory;
-use Paytabs\Sdk\Request\Payload\Parts\Query;
+
 
 $payload = PayloadsFactory::createTransactionQuery();
 $payload->buildTransactionRef('transaction_reference_here');
@@ -372,7 +385,7 @@ Process a refund:
 
 ```php
 use Paytabs\Sdk\Request\Payload\PayloadsFactory;
-use Paytabs\Sdk\Request\Payload\Parts\Refund;
+
 
 $payload = PayloadsFactory::createRefund();
 $payload
