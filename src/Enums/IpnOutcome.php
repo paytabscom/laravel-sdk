@@ -25,15 +25,16 @@ enum IpnOutcome
      */
     public function toResponse(): JsonResponse
     {
-        // Acknowledged deliveries must return 2xx, otherwise PayTabs keeps retrying.
+        // PayTabs abandons a delivery only on 403, 404 or 405. Any other failure status is retried,
+        // so a rejection that can never succeed must answer 403 rather than a descriptive 4xx.
         [$statusCode, $payload] = match ($this) {
             self::Processed => [200, ['status' => 'received']],
             self::InvalidSignature => [403, ['status' => 'error', 'message' => 'Invalid Signature']],
-            // A malformed payload can never succeed on retry, so 4xx stops the retry cycle.
-            self::InvalidPayload => [422, ['status' => 'error', 'message' => 'Invalid Payload']],
+            self::InvalidPayload => [403, ['status' => 'error', 'message' => 'Invalid Payload']],
             self::Stale => [200, ['status' => 'ignored', 'message' => 'Stale IPN']],
             self::Duplicate => [200, ['status' => 'ignored', 'message' => 'Duplicate IPN']],
             self::Disabled => [200, ['status' => 'ignored', 'message' => 'IPN Handling Disabled']],
+            // A handler failure may succeed later, so this status must stay retryable.
             self::HandlerFailed => (bool) Config::get('paytabs.ack_on_handler_exception', false)
                 ? [200, ['status' => 'received']]
                 : [500, ['status' => 'error', 'message' => 'IPN Handler Failed']],

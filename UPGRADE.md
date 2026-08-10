@@ -78,11 +78,20 @@ now returns `IpnHandlerInterface` rather than `?IpnHandlerInterface`, and throws
 `InvalidConfigurationException` when the handler is missing or does not implement the contract.
 
 
-### 3. Update assertions on the invalid-signature status code
+### 3. Update assertions on rejection status codes
 
-`IpnOutcome::InvalidSignature` now responds `403` instead of `401`. The endpoint issues no
-authentication challenge, so `401` was the wrong status. Update any test or monitoring rule
-that asserts on `401`.
+PayTabs stops delivering on a `2xx`, and of the failure statuses it abandons the delivery only
+on `403`, `404` and `405`. Anything else is retried until the gateway gives up. Rejections that
+can never succeed therefore have to answer `403`, even where a more descriptive status exists.
+
+| Outcome | Was | Now |
+|---|---|---|
+| `InvalidSignature` | 401 | **403** |
+| `InvalidPayload` | 500 | **403** |
+
+`HandlerFailed` stays `500` on purpose: a handler that failed once may succeed on retry.
+
+Update any test or monitoring rule that asserts on `401` or `422`.
 
 
 ### 4. Do not use the `null` cache store for idempotency
@@ -125,8 +134,8 @@ wrote `catch (IpnProcessingException $e)` around a callback call, delete it and 
 `handleRedirect()`. When a callback payload is malformed, `handleCallback()` reports
 `IpnOutcome::InvalidPayload` and exposes the exception via `$result->cause`.
 
-A malformed payload now responds `422` instead of `500`, so PayTabs stops retrying a
-delivery that can never succeed.
+A malformed payload now responds `403` instead of `500`. PayTabs abandons a delivery only on
+`403`, `404` or `405`, so `403` is what stops it retrying a body that can never become valid.
 
 
 ### 7. Expect idempotency locks to reset once

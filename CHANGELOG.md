@@ -24,14 +24,14 @@ See [UPGRADE.md](UPGRADE.md) for migration steps.
 - Updated service binding to **scoped** lifecycle for safer request/job isolation.
 - `IpnOutcome` enum to standardize callback/IPN response outcomes.
 - `IpnResult` value object carrying the outcome, the verified payload, the failure cause and a rejection reason in a single return value.
-- `IpnOutcome::InvalidPayload`, responding `422`, Stop retrying a delivery that can never succeed.
+- `IpnOutcome::InvalidPayload`, responding `403` so PayTabs stops retrying a delivery that can never succeed.
 - Added dedicated `InvalidPayloadException` for callback payload type and mapping failures.
 - `IpnIdempotencyGuardInterface::release()` so a failed handler frees the lock and PayTabs can retry.
 - `ipn_time_guard_future_skew_seconds` configuration options.
 - Test suite based on Orchestra Testbench, plus a CI workflow covering PHP 8.1-8.4 and Laravel 10-12.
 
 ### Fixed
-- A malformed IPN payload responded `500`, which told PayTabs to keep retrying a delivery that could never succeed. It now responds `422`.
+- A malformed IPN payload responded `500`, which told PayTabs to keep retrying a delivery that could never succeed. It now responds `403`, one of the three statuses (`403`, `404`, `405`) PayTabs treats as final.
 - Invalid signature responses leaked the first ten characters of the server key into application logs, via both the log context and the thrown exception message. An unauthenticated request to the public endpoint was enough to trigger it. Logs now carry only a non-reversible fingerprint, and the exception carries no key material.
 - A missing `paytabs.ipn_handler` acknowledged every notification with `200` while doing nothing, so PayTabs never retried and the payment was silently lost.
 - The IPN time guard parsed `transaction_time` in the application timezone, so any non-UTC `APP_TIMEZONE` shifted the freshness window and could reject every genuine delivery as stale. Timestamps are now parsed as UTC against a strict RFC 3339 format.

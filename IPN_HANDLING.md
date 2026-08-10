@@ -511,15 +511,21 @@ server key prefix, which is enough to tell two profiles apart but cannot be reve
 
 ### Response Codes
 
+PayTabs stops delivering on a `2xx`, and of the failure statuses it abandons the delivery only
+on `403`, `404` and `405`. Every other status is retried. Outcomes are mapped accordingly:
+
 | Outcome | Status | PayTabs behaviour |
 |---|---|---|
 | `Processed` | 200 | Delivered, no retry |
 | `Stale` | 200 | Ignored, no retry |
 | `Duplicate` | 200 | Ignored, no retry |
 | `Disabled` | 200 | Ignored, no retry |
-| `InvalidSignature` | 403 | Rejected |
-| `InvalidPayload` | 422 | Rejected, retrying cannot help |
-| `HandlerFailed` | 500 | Retried, or 200 when `ack_on_handler_exception` is true |
+| `InvalidSignature` | 403 | Rejected, no retry |
+| `InvalidPayload` | 403 | Rejected, no retry — a malformed body never becomes valid |
+| `HandlerFailed` | 500 | Retried, so a transient failure gets another attempt |
+
+Setting `ack_on_handler_exception` to `true` makes `HandlerFailed` answer `200`, which stops
+the retries. Leave it `false` unless you handle failed deliveries out of band.
 
 ### IPN Endpoint Security
 
