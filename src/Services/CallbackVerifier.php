@@ -6,6 +6,7 @@ namespace Paytabs\Laravel\Services;
 
 use Illuminate\Contracts\Container\Container;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\Log;
 use Paytabs\Laravel\Exceptions\InvalidConfigurationException;
 use Paytabs\Laravel\Exceptions\InvalidPayloadException;
@@ -108,15 +109,40 @@ class CallbackVerifier
     private function browserResult(): AbstractTransactionResult
     {
         if ($this->resultBrowser === null) {
-            // Map all request fields to strings, defaulting to empty string for null values.
-            // This is necessary because the SDK expects all fields to be strings, and Symfony's request bag may contain nulls.
-            $mappedFields = array_map(fn ($v) => (string) ($v ?? ''), $this->request()->request->all());
+            // The SDK strips these before hashing, so params the merchant added to their
+            // own return URL do not break signature verification.
+            $localParams = array_values(array_filter(
+                array_map('strval', (array) Config::get('paytabs.browser_local_params', [])),
+            ));
+
             $this->resultBrowser = BrowserAsPost::initWith(
-                $mappedFields
+                $this->browserFields(),
+                $localParams,
             );
         }
 
         return $this->resultBrowser;
+    }
+
+    /**
+     * Reduce the POST bag to the flat string map the SDK hashes.
+     *
+     * @return array<string, string>
+     */
+    private function browserFields(): array
+    {
+        $fields = [];
+
+        foreach ($this->request()->request->all() as $name => $value) {
+            // Casting an array would yield the literal "Array" and corrupt the hash.
+            if (is_array($value) || is_object($value)) {
+                continue;
+            }
+
+            $fields[$name] = (string) ($value ?? '');
+        }
+
+        return $fields;
     }
 
     /**

@@ -46,6 +46,10 @@ The package automatically registers an IPN route at `/paytabs/ipn`. Verify it's 
 'ipn_route_path' => 'paytabs/ipn',
 ```
 
+Setting `ipn_enabled` to `false` keeps the route registered but stops processing: the endpoint
+answers `200` with `IpnOutcome::Disabled` and never reaches your handler. Because that is a
+`2xx`, PayTabs treats the notification as delivered and does not retry it.
+
 ### Step 2: Configure Webhook URL in PayTabs Dashboard
 
 1. Log in to your PayTabs merchant dashboard
@@ -227,6 +231,25 @@ class PaytabsCustomIpnHandler
     }
 }
 ```
+
+### Result Processor API
+
+`Paytabs::getResultProcessor()` exposes these:
+
+| Method | Returns | Description |
+|---|---|---|
+| `handleIpn(bool $idempotencyCheck = true)` | `IpnResult` | Verify the current request and apply the guards |
+| `handleCallback(bool $idempotencyCheck = true)` | `IpnResult` | Alias of `handleIpn()` |
+| `dispatchIpn()` | `IpnOutcome` | Verify, guard and run the configured handler. This is what the package route calls |
+| `handleRedirect()` | `Browser` | Verify a browser return callback. Throws on failure |
+| `shouldProcessIpn(Ipn $ipn)` | `bool` | Time guard plus idempotency guard. Acquires the lock as a side effect |
+| `timeGuard(Ipn $ipn)` | `bool` | Freshness check only |
+| `idempotencyGuard(Ipn $ipn)` | `bool` | Duplicate check only. Acquires the lock |
+| `idempotencyRelease(Ipn $ipn)` | `void` | Free a lock you acquired so PayTabs can retry |
+
+If you call `shouldProcessIpn()` or `idempotencyGuard()` yourself and your processing then
+fails, call `idempotencyRelease()`. Otherwise the lock is held for its TTL and every PayTabs
+retry in that window is discarded as a duplicate.
 
 ### Handler with PayTabs helpers
 

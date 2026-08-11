@@ -28,6 +28,7 @@ See [UPGRADE.md](UPGRADE.md) for migration steps.
 - Added dedicated `InvalidPayloadException` for callback payload type and mapping failures.
 - `IpnIdempotencyGuardInterface::release()` so a failed handler frees the lock and PayTabs can retry.
 - `ipn_time_guard_future_skew_seconds` configuration options.
+- `browser_local_params` configuration option. PayTabs excludes your own return-URL parameters from the signature, so `handleRedirect()` previously rejected any callback whose return URL carried them.
 - Test suite based on Orchestra Testbench, plus a CI workflow covering PHP 8.1-8.4 and Laravel 10-12.
 
 ### Fixed
@@ -38,6 +39,7 @@ See [UPGRADE.md](UPGRADE.md) for migration steps.
 - Callbacks are now read from the Laravel request rather than `php://input` and `getallheaders()`, which fixes IPN handling under Laravel Octane.
 - Payload access is guarded throughout, so an IPN missing `payment_result`, `ipn_trace` or `profile_id` no longer raises a PHP `Error`.
 - A profile resolver misconfiguration surfaced as a generic verification failure. It is now reported distinctly, with the configuration error on `$result->cause`.
+- A missing or non-conforming `ipn_handler` was logged as "handler execution failed", implying the handler ran and threw. Configuration errors are now resolved before dispatch and logged separately.
 
 ### Changed
 - `handleIpn()` now applies the idempotency guard by default, matching its documentation.

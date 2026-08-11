@@ -80,7 +80,7 @@ class CacheIpnIdempotencyGuard implements IpnIdempotencyGuardInterface
     {
         $prefix = trim((string) Config::get('paytabs.ipn_idempotency_key_prefix', 'paytabs:ipn'));
 
-        // Payload properties are typed and non-nullable, so ?? guards against unmapped fields.
+        // Unmapped fields stay uninitialized rather than null, so ?? is what stops the Error.
         $composite = implode('|', [
             $payload->profile_id ?? '',
             $payload->tran_ref ?? '',

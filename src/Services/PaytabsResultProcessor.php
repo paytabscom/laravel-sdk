@@ -211,20 +211,39 @@ class PaytabsResultProcessor
      */
     private function runIpnHandler(Ipn $ipnData): IpnOutcome
     {
+        // Resolved before dispatch so a misconfiguration is not reported as a handler crash.
         try {
-            PaytabsResolver::resolveIpnHandler($this->container)
-                ->handleIpn($this->verifier->ipnResult(), $ipnData);
+            $handler = PaytabsResolver::resolveIpnHandler($this->container);
+        } catch (InvalidConfigurationException $e) {
+            return $this->failHandler($ipnData, 'PayTabs IPN handler is not configured correctly.', $e);
+        }
+
+        try {
+            $handler->handleIpn($this->verifier->ipnResult(), $ipnData);
         } catch (Throwable $e) {
-            Log::error('PayTabs IPN handler execution failed.', [
-                'tran_ref' => $ipnData->tran_ref ?? null,
-                'exception' => $e->getMessage(),
-            ]);
-
-            $this->guards->release($ipnData);
-
-            return IpnOutcome::HandlerFailed;
+            return $this->failHandler($ipnData, 'PayTabs IPN handler execution failed.', $e);
         }
 
         return IpnOutcome::Processed;
+    }
+
+    /**
+     * Log a handler failure and free the lock so PayTabs can retry.
+     *
+     * @param  Ipn  $ipnData  The verified IPN payload
+     * @param  string  $message  What failed
+     * @param  Throwable  $e  The underlying error
+     * @return IpnOutcome Always HandlerFailed
+     */
+    private function failHandler(Ipn $ipnData, string $message, Throwable $e): IpnOutcome
+    {
+        Log::error($message, [
+            'tran_ref' => $ipnData->tran_ref ?? null,
+            'exception' => $e->getMessage(),
+        ]);
+
+        $this->guards->release($ipnData);
+
+        return IpnOutcome::HandlerFailed;
     }
 }

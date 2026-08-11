@@ -101,6 +101,7 @@ return [
     'ipn_enabled' => true,
     'ipn_route_path' => 'paytabs/ipn',
     'ipn_route_middleware' => ['api', 'throttle:60,1'],
+    'browser_local_params' => [],
     'ipn_handler' => null,
     'ipn_profile_resolver' => null,
 
