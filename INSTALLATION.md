@@ -122,6 +122,7 @@ return [
 ### Endpoint Regions
 
 PayTabs supports multiple regional endpoints. Use the appropriate ISO 3166-1 alpha-3 code:
+> Check `Paytabs\Sdk\Profile\EndpointsFactory`
 
 | Region | Code | Endpoint |
 |--------|------|----------|
@@ -131,6 +132,7 @@ PayTabs supports multiple regional endpoints. Use the appropriate ISO 3166-1 alp
 | Jordan | `JOR` | `https://secure-jordan.paytabs.com` |
 | Kuwait | `KWT` | `https://secure-kuwait.paytabs.com` |
 | Oman | `OMN` | `https://secure-oman.paytabs.com` |
+| ...
 
 ### IPN Configuration
 
