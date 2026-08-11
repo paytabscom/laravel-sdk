@@ -46,33 +46,41 @@ return [
     /** Customizable IPN callback route path. */
     'ipn_route_path' => 'paytabs/ipn',
 
-    /** Middleware stack applied to the package IPN route. */
-    'ipn_route_middleware' => ['api'],
+    /** Middleware stack applied to the package IPN route.
+     * api middleware is recommended to avoid CSRF checks and session state.
+     * Note: api is a middleware, not a route prefix, so the route will still be /paytabs/ipn.
+     * The throttle is explicit because Laravel 11+ only rate limits the api group
+     * when the application calls ->throttleApi(), leaving this public endpoint open.
+     */
+    'ipn_route_middleware' => ['api', 'throttle:60,1'],
 
     /*
     |--------------------------------------------------------------------------
     | IPN Handler
     |--------------------------------------------------------------------------
     |
-    | Optional handler class for IPN processing.
-    | __invoke(...) is called only for verified payloads. The class must
-    | implement:
+    | Required handler class for IPN/Callback processing.
+    | handleIpn() is called only for verified payloads. The class must implement:
     | Paytabs\Laravel\Contracts\IpnHandlerInterface
     |
+    | Leaving this unset makes the IPN endpoint respond 500, so PayTabs retries
+    | rather than treating an unprocessed notification as delivered.
+    |
     */
-    'ipn_handler' => '',
+    'ipn_handler' => null,
 
     /*
     |--------------------------------------------------------------------------
     | PayTabs Result Profile Resolver
     |--------------------------------------------------------------------------
     |
-    | Optional invokable class to select a profile for validating
-    | PayTabs result callbacks (including IPN). The class must implement:
+    | Optional class to select a profile for validating
+    | PayTabs result callbacks (including IPN). resolveProfile() is called with
+    | the mapped payload. The class must implement:
     | Paytabs\Laravel\Contracts\ProfileResolverInterface
     |
     */
-    'ipn_profile_resolver' => '',
+    'ipn_profile_resolver' => null,
 
     /*
     |--------------------------------------------------------------------------
@@ -85,7 +93,11 @@ return [
     */
     'ipn_idempotency_enabled' => true,
 
-    /** Optional cache store name, null uses default store. */
+    /**
+     * Optional cache store name, null uses the default store.
+     * Must be shared and persistent. The "null" driver is rejected, and "array"
+     * is per-process so it does not deduplicate across workers.
+     */
     'ipn_idempotency_cache_store' => null,
 
     /** Key prefix used for idempotency lock keys. */
@@ -104,7 +116,7 @@ return [
     | with an error status to trigger upstream retries.
     |
     */
-    'ack_on_handler_exception' => true,
+    'ack_on_handler_exception' => false,
 
     /*
     |--------------------------------------------------------------------------
@@ -121,4 +133,7 @@ return [
 
     /** Time guard TTL in seconds. IPNs older than this are ignored. */
     'ipn_time_guard_ttl_seconds' => 3600,
+
+    /** Tolerance in seconds for IPNs timestamped ahead of server time. */
+    'ipn_time_guard_future_skew_seconds' => 300,
 ];

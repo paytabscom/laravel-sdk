@@ -46,6 +46,10 @@ The package automatically registers an IPN route at `/paytabs/ipn`. Verify it's 
 'ipn_route_path' => 'paytabs/ipn',
 ```
 
+Setting `ipn_enabled` to `false` keeps the route registered but stops processing: the endpoint
+answers `200` with `IpnOutcome::Disabled` and never reaches your handler. Because that is a
+`2xx`, PayTabs treats the notification as delivered and does not retry it.
+
 ### Step 2: Configure Webhook URL in PayTabs Dashboard
 
 1. Log in to your PayTabs merchant dashboard
@@ -168,19 +172,32 @@ class PaytabsCustomIpnHandler
 {
     public function handleIpn(): void
     {
-        $ipnRequest = Callback::init();
+        // Read from the framework request. Callback::init() uses php://input and
+        // getallheaders(), which are unavailable or already consumed under Octane.
+        $ipnRequest = Callback::initWith(
+            request()->getContent(),
+            array_map(fn ($v) => (string) ($v[0] ?? ''), request()->headers->all()),
+        );
 
         // Set the profile for the IPN validation
         $ipnRequest->setProfile(Paytabs::getProfile());
 
-        // Validate the IPN request signature
+        // Validates the signature and that the payload belongs to this profile
         $isGenuine = $ipnRequest->isGenuine();
         if (! $isGenuine) {
-            throw InvalidSignatureException::mismatch(Paytabs::getProfile()->getServerKeyPrefix());
+            throw new InvalidSignatureException();
+        }
+
+        $payload = $ipnRequest->getPayload();
+
+        if ($payload === null) {
+            Log::error('Failed to map payload from transaction result', []);
+
+            return;
         }
 
         /** @var Ipn|Browser $mappedPayload */
-        $mappedPayload = $ipnRequest->getPayload()->getMapped();
+        $mappedPayload = $payload->getMapped();
 
         if ($mappedPayload instanceof Browser) {
             Log::error('Expected IPN type, not Browser type', []);
@@ -193,8 +210,13 @@ class PaytabsCustomIpnHandler
         // Check for Idempotency: If the transaction has already been processed,
         // you can skip further processing to avoid duplicate actions.
 
-        // PayTabs provides a method to check if the IPN has already been processed.
-        Paytabs::getResultProcessor()->shouldProcessIpn($mappedPayload);
+        // shouldProcessIpn() acquires the lock as a side effect, so call it once
+        // per delivery and always act on the returned value.
+        if (! Paytabs::getResultProcessor()->shouldProcessIpn($mappedPayload)) {
+            Log::info('Skipping stale or duplicate IPN', ['tran_ref' => $mappedPayload->tran_ref]);
+
+            return;
+        }
 
         // Continue processing the IPN payload
 
@@ -210,6 +232,25 @@ class PaytabsCustomIpnHandler
 }
 ```
 
+### Result Processor API
+
+`Paytabs::getResultProcessor()` exposes these:
+
+| Method | Returns | Description |
+|---|---|---|
+| `handleIpn(bool $idempotencyCheck = true)` | `IpnResult` | Verify the current request and apply the guards |
+| `handleCallback(bool $idempotencyCheck = true)` | `IpnResult` | Alias of `handleIpn()` |
+| `dispatchIpn()` | `IpnOutcome` | Verify, guard and run the configured handler. This is what the package route calls |
+| `handleRedirect()` | `Browser` | Verify a browser return callback. Throws on failure |
+| `shouldProcessIpn(Ipn $ipn)` | `bool` | Time guard plus idempotency guard. Acquires the lock as a side effect |
+| `timeGuard(Ipn $ipn)` | `bool` | Freshness check only |
+| `idempotencyGuard(Ipn $ipn)` | `bool` | Duplicate check only. Acquires the lock |
+| `idempotencyRelease(Ipn $ipn)` | `void` | Free a lock you acquired so PayTabs can retry |
+
+If you call `shouldProcessIpn()` or `idempotencyGuard()` yourself and your processing then
+fails, call `idempotencyRelease()`. Otherwise the lock is held for its TTL and every PayTabs
+retry in that window is discarded as a duplicate.
+
 ### Handler with PayTabs helpers
 
 ```php
@@ -218,28 +259,37 @@ class PaytabsCustomIpnHandler
 namespace App\Services;
 
 use Illuminate\Support\Facades\Log;
-use Paytabs\Laravel\Exceptions\IdempotencyException;
+use Paytabs\Laravel\Enums\IpnOutcome;
 use Paytabs\Laravel\Facades\Paytabs;
 use Paytabs\Sdk\Enums\TranStatus;
 use Paytabs\Sdk\Enums\TranType;
-use Paytabs\Sdk\Exceptions\InvalidSignatureException;
 use Paytabs\Sdk\Response\Payload\Payloads\Callbacks\Ipn;
 
 class PaytabsCustomIpnHandler
 {
     public function handleIpn()
     {
-        try {
-            $mappedPayload = Paytabs::getResultProcessor()->handleIpn(true);
-        } catch (InvalidSignatureException $e1) {
-            Log::alert('Invalid signature in PayTabs callback', ['message' => $e1->getMessage()]);
+        $result = Paytabs::getResultProcessor()->handleIpn(true);
 
-            return response(['message' => 'Invalid signature'], 401);
-        } catch (IdempotencyException $e2) {
-            Log::warning('Duplicate PayTabs callback', ['message' => $e2->getMessage()]);
+        if (! $result->isProcessed()) {
+            Log::warning('PayTabs callback ignored or failed', [
+                'outcome' => $result->outcome->name,
+                'reason' => $result->reason,
+            ]);
 
-            return response(['message' => 'Duplicate detected'], 200);
+            return $result->toResponse();
+
+            // OR Handle it your way:
+            // match ($result->outcome) {
+            //   IpnOutcome::InvalidSignature => ...,
+            //   IpnOutcome::InvalidPayload => ...,
+            //   IpnOutcome::Duplicate => ...,
+            //   IpnOutcome::Stale => ...,
+            //   IpnOutcome::HandlerFailed => ...,
+            // };
         }
+
+        $mappedPayload = $result->payload;
 
         // Continue processing the IPN payload
 
@@ -332,18 +382,28 @@ class DatabaseIdempotencyGuard implements IpnIdempotencyGuardInterface
         
         return true;
     }
+
+    public function release(Ipn $payload): void
+    {
+        // Called when your handler fails, so PayTabs can retry the delivery.
+        DB::table('ipn_locks')->where('key', $this->buildKey($payload))->delete();
+    }
     
     private function buildKey(Ipn $payload): string
     {
-        return sprintf(
-            'ipn:%d:%s:%s',
-            $payload->profile_id,
-            $payload->ipn_trace,
-            $payload->tran_ref
-        );
+        // Hashed so the key stays driver-safe and fixed length.
+        return hash('sha256', implode('|', [
+            $payload->profile_id ?? '',
+            $payload->tran_ref ?? '',
+            $payload->tran_type ?? '',
+            $payload->payment_result->transaction_time ?? '',
+        ]));
     }
 }
 ```
+
+> `release()` is required. A guard that only implements `acquire()` will fail to
+> instantiate, and a delivery whose handler throws would stay locked until the TTL expires.
 
 Register in your service provider:
 
@@ -365,6 +425,7 @@ Time Guard is a security feature that prevents replay attacks by rejecting IPNs 
 ```php
 'ipn_time_guard_enabled' => true,
 'ipn_time_guard_ttl_seconds' => 3600, // 1 hour
+'ipn_time_guard_future_skew_seconds' => 300, // tolerance for clock drift
 ```
 
 ### How It Works
@@ -463,7 +524,31 @@ Add to `config/paytabs.php`:
 
 ### Signature Validation
 
-The package automatically validates PayTabs signatures for all IPN callbacks. Invalid signatures are rejected with a 401 response.
+The package automatically validates PayTabs signatures for all IPN callbacks. Invalid signatures are rejected with a 403 response.
+
+Verification also rejects a payload whose `profile_id` does not match the resolved profile, so a
+callback signed for one merchant cannot be replayed against another in a multi-profile setup.
+
+Rejection logs never contain key material. They carry a truncated SHA-256 fingerprint of the
+server key prefix, which is enough to tell two profiles apart but cannot be reversed.
+
+### Response Codes
+
+PayTabs stops delivering on a `2xx`, and of the failure statuses it abandons the delivery only
+on `403`, `404` and `405`. Every other status is retried. Outcomes are mapped accordingly:
+
+| Outcome | Status | PayTabs behaviour |
+|---|---|---|
+| `Processed` | 200 | Delivered, no retry |
+| `Stale` | 200 | Ignored, no retry |
+| `Duplicate` | 200 | Ignored, no retry |
+| `Disabled` | 200 | Ignored, no retry |
+| `InvalidSignature` | 403 | Rejected, no retry |
+| `InvalidPayload` | 403 | Rejected, no retry — a malformed body never becomes valid |
+| `HandlerFailed` | 500 | Retried, so a transient failure gets another attempt |
+
+Setting `ack_on_handler_exception` to `true` makes `HandlerFailed` answer `200`, which stops
+the retries. Leave it `false` unless you handle failed deliveries out of band.
 
 ### IPN Endpoint Security
 

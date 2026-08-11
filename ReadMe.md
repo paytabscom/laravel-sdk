@@ -16,8 +16,8 @@ Official PayTabs Laravel SDK for Payment Gateway integrations. This package prov
 
 ## Requirements
 
-- PHP >= 8.1
-- Laravel >= 11.0
+- PHP >= 8.1 (>= 8.3 when using Laravel 13)
+- Laravel >= 10.0
 - PayTabs PHP SDK v3
 
 ## Installation
@@ -143,16 +143,17 @@ The package configuration file `config/paytabs.php` includes the following optio
 | `load_routes` | Load package routes automatically | `true` |
 | `ipn_enabled` | Enable IPN handling | `true` |
 | `ipn_route_path` | Custom IPN route path | `paytabs/ipn` |
-| `ipn_route_middleware` | Middleware for IPN route | `['api']` |
-| `ipn_handler` | Custom IPN handler class | - |
+| `ipn_route_middleware` | Middleware for IPN route | `['api', 'throttle:60,1']` |
+| `ipn_handler` | Required IPN handler class | - |
 | `ipn_profile_resolver` | Custom profile resolver class | - |
 | `ipn_idempotency_enabled` | Enable IPN idempotency checks | `true` |
 | `ipn_idempotency_cache_store` | Cache store for idempotency | `null` (default) |
 | `ipn_idempotency_key_prefix` | Cache key prefix | `paytabs:ipn` |
 | `ipn_idempotency_ttl_seconds` | Idempotency lock TTL | `180` |
-| `ack_on_handler_exception` | Acknowledge IPN even if handler fails | `true` |
+| `ack_on_handler_exception` | Acknowledge IPN even if handler fails | `false` |
 | `ipn_time_guard_enabled` | Enable transaction time Guard | `true` |
 | `ipn_time_guard_ttl_seconds` | Transaction time guard TTL (seconds) | `3600` |
+| `ipn_time_guard_future_skew_seconds` | Tolerance for IPNs ahead of server time | `300` |
 
 ## Using Multiple Profiles
 
@@ -197,4 +198,4 @@ For issues and questions:
 
 ## License
 
-This package is open-source software licensed under the MIT license.
+This package is distributed under a proprietary license. See LICENSE.md for full terms.

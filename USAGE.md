@@ -84,7 +84,7 @@ $shipping = ShippingDetails::init('Fname Lname', '+971500000000', 'shipping@exam
 $shipping = ShippingDetails::init()->copyFrom($billing);
 
 // Hide the Shipping section in the payment page unless essential details are required
-$payload->buildHideShipping(true)
+$payload->buildHideShipping(true);
 ```
 
 ### Adding Frame Options
@@ -95,7 +95,7 @@ To fit the payment page inside iFrame:
 use Paytabs\Sdk\Enums\FramedTarget;
 use Paytabs\Sdk\Request\Payload\Parts\Framed;
 
-$payload->buildFramedObj(new Framed(true, FramedTarget::ReturnTop))
+$payload->buildFramedObj(new Framed(true, FramedTarget::ReturnTop));
 ```
 
 ### Customizing the Payment page: Language, Alternative currency & Theme ID
@@ -103,7 +103,7 @@ $payload->buildFramedObj(new Framed(true, FramedTarget::ReturnTop))
 ```php
 use Paytabs\Sdk\Enums\Language;
 
-$payload->buildPaypageConfig(Language::Arabic, 'USD', $themeId)
+$payload->buildPaypageConfig(Language::Arabic, 'USD', $themeId);
 ```
 
 ## Handling Responses
@@ -154,8 +154,14 @@ $mappedPayload->cart_id;
 
 After payment completion, PayTabs redirects back to your configured return URL. Handle the callback:
 
+The package does not register a route for this. Point your PayTabs return URL at your own
+route and call `handleRedirect()` from it.
+
 ```php
+use Illuminate\Support\Facades\Log;
+use Paytabs\Laravel\Exceptions\InvalidPayloadException;
 use Paytabs\Laravel\Facades\Paytabs;
+use Paytabs\Sdk\Exceptions\InvalidSignatureException;
 
 public function handleReturn()
 {
@@ -163,11 +169,11 @@ public function handleReturn()
 
     try {
         $result = Paytabs::getResultProcessor()->handleRedirect();
-    } catch (InvalidSignatureException $e1) {
+    } catch (InvalidSignatureException|InvalidPayloadException $e1) {
         Log::alert($e1->getMessage());
 
         return redirect()->route('orders.index')
-            ->withErrors(['message' => 'Invalid signature in payment response.']);
+            ->withErrors(['message' => 'Invalid payment response.']);
     }
 
     Log::info('PayTabs redirect processed', [
@@ -187,6 +193,19 @@ public function handleReturn()
 ## Using Multiple Profiles
 
 ### Switching Profiles Dynamically
+
+```php
+// config/paytabs.php
+
+return [
+    'saudi' => [
+        'profile_id' => 123,
+        'server_key' => 'SERVER-KEY',
+    ]
+
+    // ...
+];
+```
 
 ```php
 use Paytabs\Laravel\Facades\Paytabs;
@@ -212,8 +231,21 @@ Paytabs::usingDefaults();
 ### Using Credentials Directly
 
 ```php
+// config/paytabs.php
+
+return [
+    'egypt' => [
+        'profile_id' => 456,
+        'server_key' => 'SERVER-KEY',
+    ],
+
+    // ...
+];
+```
+
+```php
 use Paytabs\Laravel\Facades\Paytabs;
-use Paytabs\Sdk\Profile\Endpoints\Egy;
+use Paytabs\Sdk\Profile\EndpointsFactory;
 
 // Use Egypt profile for this transaction
 Paytabs::usingCredentials(
@@ -279,7 +311,7 @@ Configure in `config/paytabs.php`:
 
 ```php
 use Paytabs\Sdk\Exceptions\InvalidConfigurationException;
-use Paytabs\Sdk\Exceptions\InvalidSignatureException;
+use Paytabs\Laravel\Enums\IpnOutcome;
 
 try {
     $response = Paytabs::submitRequest($request);
@@ -295,17 +327,27 @@ try {
 
 // Callback/IPN
 
-try {
-    $result = Paytabs::getResultProcessor()->handleCallback(true);
-} catch (InvalidSignatureException $e1) {
-    Log::alert('Invalid signature in PayTabs callback', ['message' => $e1->getMessage()]);
+$result = Paytabs::getResultProcessor()->handleCallback(true);
 
-    return response(['message' => 'Invalid signature'], 401);
-} catch (IdempotencyException $e2) {
-    Log::warning('Duplicate PayTabs callback', ['message' => $e2->getMessage()]);
+if (! $result->isProcessed()) {
+    Log::warning('PayTabs callback ignored or failed', [
+        'outcome' => $result->outcome->name,
+        'reason' => $result->reason,
+    ]);
 
-    return response(['message' => 'Duplicate detected'], 200);
+    return $result->toResponse();
+
+    // OR Handle it your way:
+    // match ($result->outcome) {
+    //   IpnOutcome::InvalidSignature => ...,
+    //   IpnOutcome::InvalidPayload => ...,
+    //   IpnOutcome::Duplicate => ...,
+    //   IpnOutcome::Stale => ...,
+    //   IpnOutcome::HandlerFailed => ...,
+    // };
 }
+
+$ipn = $result->payload;
 ```
 
 ## Advanced Usage
@@ -337,13 +379,13 @@ Check the status of a previous transaction:
 
 ```php
 use Paytabs\Sdk\Request\Payload\PayloadsFactory;
-use Paytabs\Sdk\Request\Payload\Parts\Query;
+
 
 $payload = PayloadsFactory::createTransactionQuery();
 $payload->buildTransactionRef('transaction_reference_here');
 
 $request = RequestsFactory::createTransactionQuery($payload);
-$response = Paytabs::submitRequest($request);
+$ptResponse = Paytabs::submitRequest($request);
 
 if ($ptResponse->isFailure()) {
     return back()
@@ -362,7 +404,7 @@ Process a refund:
 
 ```php
 use Paytabs\Sdk\Request\Payload\PayloadsFactory;
-use Paytabs\Sdk\Request\Payload\Parts\Refund;
+
 
 $payload = PayloadsFactory::createRefund();
 $payload
@@ -370,7 +412,7 @@ $payload
     ->buildTransactionRef('tran-ref-to-refund');
 
 $request = RequestsFactory::createPaymentRequest($payload);
-$response = Paytabs::submitRequest($request);
+$ptResponse = Paytabs::submitRequest($request);
 
 if ($ptResponse->isFailure()) {
     return back()
@@ -383,7 +425,7 @@ if ($ptResponse->isFailure()) {
 $mapped = $ptResponse->getPayloadMapped();
 
 if ($mapped->isPaymentSuccessful()) {
-    $refud_data = [
+    $refund_data = [
         'amount' => $mapped->tran_total,
         'status' => $mapped->payment_result->response_status,
         'tran_ref' => $mapped->tran_ref,
@@ -409,8 +451,9 @@ return redirect()->route('orders.index')
 Always store the transaction reference & the trace code returned by PayTabs:
 
 ```php
-$transactionRef = $response->tran_ref;
-$traceCode = $response->trace || $response->ipn_trace;
+$mappedPayload = $response->getPayloadMapped();
+$transactionRef = $mappedPayload->tran_ref;
+$traceCode = $mappedPayload->trace ?? $mappedPayload->ipn_trace;
 ```
 
 ### 2. Log All Payment Events
@@ -421,7 +464,7 @@ use Illuminate\Support\Facades\Log;
 Log::info('Payment initiated', [
     'order_id' => $order->id,
     'amount' => $order->total,
-    'transaction_ref' => $response->tran_ref,
+    'transaction_ref' => $mappedPayload->tran_ref,
 ]);
 ```
 

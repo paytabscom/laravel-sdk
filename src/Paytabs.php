@@ -18,7 +18,7 @@ use Paytabs\Sdk\Response\ResponseDirectInterface;
 
 class Paytabs
 {
-    public const VERSION = '2.0.2';
+    public const VERSION = '3.0.0';
 
     private ?PaytabsSdk $instance = null;
 
@@ -191,7 +191,7 @@ class Paytabs
             throw InvalidConfigurationException::missing('PAYTABS_ENDPOINT');
         }
 
-        if (empty($profileId)) {
+        if (empty($profileId) || ! is_numeric($profileId)) {
             throw InvalidConfigurationException::missing('PAYTABS_PROFILE_ID');
         }
 

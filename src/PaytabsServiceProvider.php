@@ -8,7 +8,6 @@ use Illuminate\Support\Facades\Config;
 use Illuminate\Support\ServiceProvider;
 use Paytabs\Laravel\Contracts\IpnIdempotencyGuardInterface;
 use Paytabs\Laravel\Services\CacheIpnIdempotencyGuard;
-use Paytabs\Laravel\Services\PaytabsResultProcessor;
 
 class PaytabsServiceProvider extends ServiceProvider
 {
@@ -42,8 +41,8 @@ class PaytabsServiceProvider extends ServiceProvider
             'paytabs',
         );
 
-        $this->app->singleton(Paytabs::class);
+        // Scoped binding isolates SDK state per request/job lifecycle.
+        $this->app->scoped(Paytabs::class);
         $this->app->bind(IpnIdempotencyGuardInterface::class, CacheIpnIdempotencyGuard::class);
-        $this->app->bind(PaytabsResultProcessor::class);
     }
 }

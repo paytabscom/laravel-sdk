@@ -6,8 +6,8 @@ This guide provides detailed instructions for installing and configuring the Pay
 
 Before installing the package, ensure your system meets the following requirements:
 
-- **PHP**: >= 8.1
-- **Laravel**: >= 11.0
+- **PHP**: >= 8.1 (>= 8.3 when using Laravel 13)
+- **Laravel**: >= 10.0
 - **Composer**
 - **Extensions**: 
   - `curl` (required by PayTabs PHP SDK)
@@ -51,7 +51,7 @@ PAYTABS_SERVER_KEY=your_server_key_here
 
 | Variable | Required | Description | Example |
 |----------|----------|-------------|---------|
-| `PAYTABS_ENDPOINT` | Yes | PayTabs endpoint region code (ISO 3166-1 alpha-3) | `ARE`, `SAU`, `EGY`, `JOR`, `KWT`, `OMN` |
+| `PAYTABS_ENDPOINT` | Yes | PayTabs endpoint region code (ISO 3166-1 alpha-3) | `ARE`, `SAU`, `EGY`, `JOR`, `KWT`, `OMN`, ... |
 | `PAYTABS_PROFILE_ID` | Yes | Your PayTabs merchant profile ID | `12345` |
 | `PAYTABS_SERVER_KEY` | Yes | Your PayTabs server key from merchant dashboard | `S9K3...` |
 
@@ -89,7 +89,7 @@ return [
 
     // Your PayTabs credentials
     'profile_id' => env('PAYTABS_PROFILE_ID'),
-    'server_key' => env('PAYTABS_SERVER_KEY'),
+    'server_key' => env('PAYTABS_SERVER_KEY', ''),
 
     // Automatically add plugin info to requests
     'auto_fill_plugin_info' => true,
@@ -100,7 +100,7 @@ return [
     // IPN Configuration
     'ipn_enabled' => true,
     'ipn_route_path' => 'paytabs/ipn',
-    'ipn_route_middleware' => ['api'],
+    'ipn_route_middleware' => ['api', 'throttle:60,1'],
     'ipn_handler' => null,
     'ipn_profile_resolver' => null,
 
@@ -111,13 +111,18 @@ return [
     'ipn_idempotency_ttl_seconds' => 180,
 
     // Error handling
-    'ack_on_handler_exception' => true,
+    'ack_on_handler_exception' => false,
+
+    // Time Guard
+    'ipn_time_guard_enabled' => true,
+    'ipn_time_guard_ttl_seconds' => 3600,
 ];
 ```
 
 ### Endpoint Regions
 
 PayTabs supports multiple regional endpoints. Use the appropriate ISO 3166-1 alpha-3 code:
+> Check `Paytabs\Sdk\Profile\EndpointsFactory`
 
 | Region | Code | Endpoint |
 |--------|------|----------|
@@ -127,6 +132,7 @@ PayTabs supports multiple regional endpoints. Use the appropriate ISO 3166-1 alp
 | Jordan | `JOR` | `https://secure-jordan.paytabs.com` |
 | Kuwait | `KWT` | `https://secure-kuwait.paytabs.com` |
 | Oman | `OMN` | `https://secure-oman.paytabs.com` |
+| ...
 
 ### IPN Configuration
 
@@ -144,13 +150,15 @@ This will change the route from `/paytabs/ipn` to `/webhooks/paytabs`.
 
 #### IPN Middleware
 
-Add custom middleware to the IPN route:
+The default stack is `['api', 'throttle:60,1']`. The throttle is explicit because Laravel 11+
+only rate limits the `api` group when the application calls `->throttleApi()`, which would
+otherwise leave this public endpoint open.
+
+Raise the limit if your transaction volume needs it:
 
 ```php
-'ipn_route_middleware' => ['api', 'throttle:60,1'],
+'ipn_route_middleware' => ['api', 'throttle:120,1'],
 ```
-
-This adds rate limiting (60 requests per minute) to the IPN endpoint.
 
 #### Disable Automatic Route Loading
 
@@ -160,7 +168,7 @@ If you prefer to define the IPN route manually:
 'load_routes' => false,
 ```
 
-Then add the route to your `routes/web.php` or `routes/api.php`:
+Then add the route to your `routes/api.php`:
 
 ```php
 use Paytabs\Laravel\Http\Controllers\PaytabsResultController;
@@ -169,6 +177,11 @@ Route::post('webhooks/paytabs', [PaytabsResultController::class, 'ipn'])
     ->middleware(['api'])
     ->name('paytabs.ipn');
 ```
+
+> **Do not register the IPN route in `routes/web.php`.** The `web` middleware group
+> applies CSRF verification, and PayTabs cannot send a CSRF token, so every
+> notification would be rejected with a `419` response.
+> OR exclude the CSRF protection from the route.
 
 ### Idempotency Configuration
 
@@ -203,7 +216,7 @@ Adjust the idempotency lock duration:
 If you encounter configuration validation errors:
 
 ```
-PayTabs endpoint is not configured. Please set PAYTABS_ENDPOINT in your environment variables.
+PayTabs SDK:: Invalid value of key: [%s].
 ```
 
 **Solution**: Ensure all required environment variables are set in your `.env` file and run:
@@ -221,7 +234,8 @@ If you see an error about the cURL extension:
 cURL extension is required
 ```
 
-**Solution**: Install the cURL extension for your PHP version:
+**Solution**: Install the cURL extension for your PHP version.
+
 
 
 ### IPN Route Not Working
