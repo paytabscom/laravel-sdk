@@ -18,12 +18,15 @@ jobs:
         include:
           - php: '8.1'
             laravel: '^10'
+            testbench: '^8.0'
           - php: '8.3'
             laravel: '^11'
+            testbench: '^9.0'
           - php: '8.4'
             laravel: '^12'
+            testbench: '^10.0'
 
-    name: PHP ${{ matrix.php }} / Laravel ${{ matrix.laravel }} ${{ matrix.dependencies }}
+    name: PHP ${{ matrix.php }} / Laravel ${{ matrix.laravel }} / Testbench ${{ matrix.testbench }}
 
     steps:
       - uses: actions/checkout@v4
@@ -45,8 +48,9 @@ jobs:
             "illuminate/routing:${{ matrix.laravel }}" \
             "illuminate/support:${{ matrix.laravel }}" \
             "illuminate/log:${{ matrix.laravel }}" \
+            "orchestra/testbench:${{ matrix.testbench }}" \
             --no-interaction --no-update
-          composer update --prefer-dist --no-interaction --no-progress ${{ matrix.dependencies }}
+          composer update --prefer-dist --no-interaction --no-progress
 
       - name: Run tests
         run: composer test
