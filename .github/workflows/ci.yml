@@ -47,7 +47,15 @@ jobs:
 
       - name: Install dependencies
         run: |
-          composer require "illuminate/support:${{ matrix.laravel }}" --no-interaction --no-update
+          composer require \
+            "illuminate/cache:${{ matrix.laravel }}" \
+            "illuminate/config:${{ matrix.laravel }}" \
+            "illuminate/contracts:${{ matrix.laravel }}" \
+            "illuminate/http:${{ matrix.laravel }}" \
+            "illuminate/routing:${{ matrix.laravel }}" \
+            "illuminate/support:${{ matrix.laravel }}" \
+            "illuminate/log:${{ matrix.laravel }}" \
+            --no-interaction --no-update
           composer update --prefer-dist --no-interaction --no-progress ${{ matrix.dependencies }}
 
       - name: Run tests
