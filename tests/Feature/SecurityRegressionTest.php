@@ -110,6 +110,33 @@ final class SecurityRegressionTest extends TestCase
         PaytabsResolver::resolveIpnHandler($this->app);
     }
 
+    public function test_a_misconfigured_handler_is_not_logged_as_an_execution_failure(): void
+    {
+        $this->app['config']->set('paytabs.ipn_handler', null);
+        $this->captureLogs();
+
+        $this->processorFor($this->signedIpnRequest())->dispatchIpn();
+
+        $messages = array_column($this->logRecords, 'message');
+
+        // "execution failed" would imply the merchant's handler ran and threw.
+        $this->assertContains('PayTabs IPN handler is not configured correctly.', $messages);
+        $this->assertNotContains('PayTabs IPN handler execution failed.', $messages);
+    }
+
+    public function test_a_throwing_handler_is_still_logged_as_an_execution_failure(): void
+    {
+        $this->app['config']->set('paytabs.ipn_handler', ExplodingHandler::class);
+        $this->captureLogs();
+
+        $this->processorFor($this->signedIpnRequest())->dispatchIpn();
+
+        $messages = array_column($this->logRecords, 'message');
+
+        $this->assertContains('PayTabs IPN handler execution failed.', $messages);
+        $this->assertNotContains('PayTabs IPN handler is not configured correctly.', $messages);
+    }
+
     private function captureLogs(): void
     {
         $this->logRecords = [];
@@ -132,5 +159,13 @@ final class LockProbeHandler implements IpnHandlerInterface
     public function handleIpn(AbstractTransactionResult $transactionResult, Ipn $mappedPayload): void
     {
         self::$received[] = $mappedPayload;
+    }
+}
+
+final class ExplodingHandler implements IpnHandlerInterface
+{
+    public function handleIpn(AbstractTransactionResult $transactionResult, Ipn $mappedPayload): void
+    {
+        throw new \RuntimeException('Order lookup failed.');
     }
 }

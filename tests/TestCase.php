@@ -117,4 +117,59 @@ abstract class TestCase extends Orchestra
             content: $body,
         );
     }
+
+    /**
+     * Build the POST fields PayTabs sends to a return URL.
+     *
+     * @param  array<string, mixed>  $overrides
+     * @return array<string, mixed>
+     */
+    protected function browserFields(array $overrides = []): array
+    {
+        return array_replace([
+            'acquirerMessage' => '',
+            'acquirerRRN' => '',
+            'cartId' => 'order-001',
+            'customerEmail' => 'customer@example.test',
+            'respCode' => 'G12345',
+            'respMessage' => 'Authorised',
+            'respStatus' => 'A',
+            'tranRef' => 'TST2000000000001',
+            'token' => '',
+        ], $overrides);
+    }
+
+    /**
+     * Sign browser fields the way PayTabs does: drop empties and local params, sort, url-encode.
+     *
+     * @param  array<string, mixed>  $fields
+     * @param  array<int, string>  $localParams
+     */
+    protected function browserSignature(array $fields, array $localParams = []): string
+    {
+        unset($fields['signature']);
+
+        foreach ($localParams as $localParam) {
+            unset($fields[$localParam]);
+        }
+
+        $fields = array_filter($fields, static fn ($v): bool => $v !== null && $v !== '');
+        ksort($fields);
+
+        return hash_hmac('sha256', http_build_query($fields), self::SERVER_KEY);
+    }
+
+    /**
+     * Build a signed browser redirect request.
+     *
+     * @param  array<string, mixed>  $overrides
+     * @param  array<int, string>  $localParams
+     */
+    protected function signedBrowserRequest(array $overrides = [], array $localParams = [], ?string $signature = null): Request
+    {
+        $fields = $this->browserFields($overrides);
+        $fields['signature'] = $signature ?? $this->browserSignature($fields, $localParams);
+
+        return Request::create('/paytabs/return', 'POST', $fields);
+    }
 }
