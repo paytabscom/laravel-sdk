@@ -108,8 +108,11 @@ class CallbackVerifier
     private function browserResult(): AbstractTransactionResult
     {
         if ($this->resultBrowser === null) {
+            // Map all request fields to strings, defaulting to empty string for null values.
+            // This is necessary because the SDK expects all fields to be strings, and Symfony's request bag may contain nulls.
+            $mappedFields = array_map(fn ($v) => (string) ($v ?? ''), $this->request()->request->all());
             $this->resultBrowser = BrowserAsPost::initWith(
-                $this->request()->request->all()
+                $mappedFields
             );
         }
 
@@ -125,6 +128,8 @@ class CallbackVerifier
     {
         $headers = [];
 
+        // Symfony's request headers bag is multi-value, but the SDK expects single-value headers.
+        // We take the first value for each header, defaulting to an empty string if no values are present.
         foreach ($request->headers->all() as $name => $values) {
             $headers[$name] = (string) ($values[0] ?? '');
         }
