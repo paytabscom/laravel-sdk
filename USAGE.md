@@ -190,19 +190,6 @@ public function handleReturn()
 }
 ```
 
-#### Custom Parameters on the Return URL
-
-PayTabs excludes your own return-URL parameters from the signature it generates. If you append
-any, list them under `browser_local_params` or `handleRedirect()` rejects the callback as an
-invalid signature.
-
-```php
-// Return URL: https://example.test/paytabs/return?order=123
-
-// config/paytabs.php
-'browser_local_params' => ['order'],
-```
-
 ## Using Multiple Profiles
 
 ### Switching Profiles Dynamically

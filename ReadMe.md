@@ -144,7 +144,6 @@ The package configuration file `config/paytabs.php` includes the following optio
 | `ipn_enabled` | Enable IPN handling | `true` |
 | `ipn_route_path` | Custom IPN route path | `paytabs/ipn` |
 | `ipn_route_middleware` | Middleware for IPN route | `['api', 'throttle:60,1']` |
-| `browser_local_params` | Your own params on the return URL, excluded from the signature | `[]` |
 | `ipn_handler` | Required IPN handler class | - |
 | `ipn_profile_resolver` | Custom profile resolver class | - |
 | `ipn_idempotency_enabled` | Enable IPN idempotency checks | `true` |

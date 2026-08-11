@@ -56,21 +56,6 @@ return [
 
     /*
     |--------------------------------------------------------------------------
-    | Browser Return Local Parameters
-    |--------------------------------------------------------------------------
-    |
-    | Names of your own parameters appended to the PayTabs return URL. PayTabs
-    | excludes them from the signature, so they must be listed here or
-    | handleRedirect() rejects the callback as an invalid signature.
-    |
-    | Example: a return URL of https://example.test/return?order=123
-    | requires ['order'].
-    |
-    */
-    'browser_local_params' => [],
-
-    /*
-    |--------------------------------------------------------------------------
     | IPN Handler
     |--------------------------------------------------------------------------
     |

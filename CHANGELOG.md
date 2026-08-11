@@ -28,7 +28,6 @@ See [UPGRADE.md](UPGRADE.md) for migration steps.
 - Added dedicated `InvalidPayloadException` for callback payload type and mapping failures.
 - `IpnIdempotencyGuardInterface::release()` so a failed handler frees the lock and PayTabs can retry.
 - `ipn_time_guard_future_skew_seconds` configuration options.
-- `browser_local_params` configuration option. PayTabs excludes your own return-URL parameters from the signature, so `handleRedirect()` previously rejected any callback whose return URL carried them.
 - Test suite based on Orchestra Testbench, plus a CI workflow covering PHP 8.1-8.4 and Laravel 10-12.
 
 ### Fixed

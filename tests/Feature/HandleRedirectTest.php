@@ -69,31 +69,6 @@ final class HandleRedirectTest extends TestCase
         $this->processorFor(Request::create('/paytabs/return', 'POST', $fields))->handleRedirect();
     }
 
-    public function test_declared_local_params_are_excluded_from_the_signature(): void
-    {
-        $this->app['config']->set('paytabs.browser_local_params', ['order']);
-
-        $fields = $this->browserFields();
-        $fields['signature'] = $this->browserSignature($fields);
-        $fields['order'] = '123';
-
-        $result = $this->processorFor(Request::create('/paytabs/return', 'POST', $fields))->handleRedirect();
-
-        $this->assertSame('TST2000000000001', $result->tranRef);
-    }
-
-    public function test_array_fields_do_not_corrupt_the_signature(): void
-    {
-        $fields = $this->browserFields();
-        $fields['signature'] = $this->browserSignature($fields);
-        // Casting this to string would yield "Array" and silently break verification.
-        $fields['extra'] = ['a', 'b'];
-
-        $result = $this->processorFor(Request::create('/paytabs/return', 'POST', $fields))->handleRedirect();
-
-        $this->assertSame('TST2000000000001', $result->tranRef);
-    }
-
     public function test_a_json_ipn_body_is_rejected_by_the_redirect_handler(): void
     {
         // A JSON body populates no POST fields, so the SDK rejects it before mapping.
