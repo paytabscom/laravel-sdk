@@ -16,20 +16,15 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - php: '8.1'
-            laravel: '^10'
-            testbench: '^8.0'
-          - php: '8.3'
-            laravel: '^11'
-            testbench: '^9.0'
-          - php: '8.4'
+          - php: '8.2'
             laravel: '^12'
-            testbench: '^10.0'
+          - php: '8.4'
+            laravel: '^13'
 
-    name: PHP ${{ matrix.php }} / Laravel ${{ matrix.laravel }} / Testbench ${{ matrix.testbench }}
+    name: PHP ${{ matrix.php }} / Laravel ${{ matrix.laravel }}
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Setup PHP
         uses: shivammathur/setup-php@v2
@@ -48,7 +43,6 @@ jobs:
             "illuminate/routing:${{ matrix.laravel }}" \
             "illuminate/support:${{ matrix.laravel }}" \
             "illuminate/log:${{ matrix.laravel }}" \
-            "orchestra/testbench:${{ matrix.testbench }}" \
             --no-interaction --no-update
           composer update --prefer-dist --no-interaction --no-progress
 
@@ -60,12 +54,12 @@ jobs:
     name: Static analysis and formatting
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Setup PHP
         uses: shivammathur/setup-php@v2
         with:
-          php-version: '8.3'
+          php-version: '8.4'
           coverage: none
 
       - name: Install dependencies
