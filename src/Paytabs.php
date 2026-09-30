@@ -7,6 +7,8 @@ namespace Paytabs\Laravel;
 use Illuminate\Support\Facades\App;
 use Illuminate\Support\Facades\Config;
 use Paytabs\Laravel\Services\PaytabsResultProcessor;
+use Paytabs\Laravel\Services\PaymentService;
+use Paytabs\Laravel\Services\TransactionsService;
 use Paytabs\Sdk\Exceptions\InvalidConfigurationException;
 use Paytabs\Sdk\Paytabs as PaytabsSdk;
 use Paytabs\Sdk\Profile\AbstractEndpoint;
@@ -113,6 +115,22 @@ class Paytabs
             PaytabsResultProcessor::class,
             ['profile' => $profile]
         );
+    }
+
+    /**
+     * Get the Transactions API service.
+     */
+    public function transactions(): TransactionsService
+    {
+        return App::make(TransactionsService::class);
+    }
+
+    /**
+     * Get the Payment API service.
+     */
+    public function payment(): PaymentService
+    {
+        return App::make(PaymentService::class);
     }
 
     /**
