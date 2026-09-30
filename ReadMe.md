@@ -10,6 +10,7 @@ Official PayTabs Laravel SDK for Payment Gateway integrations. This package prov
 - **Configuration Management**: Environment-based configuration with sensible defaults
 - **IPN Handling**: Built-in Instant Payment Notification (IPN) handling with idempotency support
 - **Profile Resolution**: Support for multiple PayTabs profiles with custom resolvers
+- **Transactions API**: High-level service for common operations (Query, Capture, Refund, Void) with clean response object wrappers
 - **Signature Validation**: Automatic signature verification for callbacks
 - **Type Safety**: Full PHP 8.1+ type hints and comprehensive PHPDoc blocks
 - **Idempotency**: Cache-based duplicate delivery prevention for IPNs
@@ -50,37 +51,31 @@ PAYTABS_SERVER_KEY=your_server_key
 
 ```php
 use Paytabs\Laravel\Facades\Paytabs;
-use Paytabs\Sdk\Enums\TranClass;
-use Paytabs\Sdk\Enums\TranType;
-use Paytabs\Sdk\Request\Payload\PayloadsFactory;
-use Paytabs\Sdk\Request\Payload\Parts\CustomerDetails;
-use Paytabs\Sdk\Request\RequestsFactory;
 
-// Create the payload
-$payload = PayloadsFactory::createHostedPage();
-
-// Add customer details
-$payload
-    ->buildTransaction(TranType::Sale, TranClass::Ecom)
-    ->buildCart('order-001', 'AED', 99.5, 'Order Payment')
-    ->buildCustomerDetails(
-        CustomerDetails::init('Fname Lname', '+971500000000', 'customer@example.com')
-            ->setAddress('UAE', 'State', 'City', 'Street', '12345')
-    );
-
-// Create the request
-$request = RequestsFactory::createPaymentRequest($payload);
-
-// Submit and get response
-$response = Paytabs::submitRequest($request);
+$response = Paytabs::payment()->createHostedPage(
+    cart_id: 'order-001',
+    amount: 99.5,
+    currency: 'AED',
+    description: 'Order Payment',
+    customer: [
+        'name' => 'Fname Lname',
+        'email' => 'customer@example.com',
+        'phone' => '+971500000000',
+        'street' => '12345',
+        'city' => 'City',
+        'state' => 'State',
+        'country' => 'UAE',
+    ]
+);
 
 if ($response->isFailure()) {
-    echo $response->getFailure()->code . ' - ' . $response->getFailure()->message;
+    echo $response->getCode() . ' - ' . $response->getMessage();
     exit;
 }
 
 if ($response->isRedirect()) {
-    $paymentUrl = $response->getRedirect()->redirect_url;
+    $paymentUrl = $response->getRedirectUrl();
+    // return redirect($paymentUrl);
 }
 ```
 
@@ -123,6 +118,66 @@ class PaytabsIpnHandler implements IpnHandlerInterface
     }
 }
 ```
+
+### 4. Manage Transactions (Query, Capture, Refund, Void)
+
+Use the `Paytabs::transactions()` service to easily query, capture, refund, or void transactions:
+
+```php
+use Paytabs\Laravel\Facades\Paytabs;
+
+// 1. Query transaction status
+$response = Paytabs::transactions()->query('TST240000000001');
+
+if ($response->isSuccess() && $response->isAuthorized()) {
+    $tranRef = $response->getTranRef();
+    $message = $response->getMessage();
+}
+
+// 2. Capture an authorized transaction
+$response = Paytabs::transactions()->capture(
+    tran_ref: 'TST240000000001',
+    cart_id: 'order-001',
+    cart_amount: 99.50,
+    cart_currency: 'AED',
+    cart_description: 'Capture payment for order-001'
+);
+
+// 3. Refund a captured or sale transaction
+$response = Paytabs::transactions()->refund(
+    tran_ref: 'TST240000000001',
+    cart_id: 'refund-001',
+    cart_amount: 50.00,
+    cart_currency: 'AED',
+    cart_description: 'Refund for order-001'
+);
+
+// 4. Void an authorized transaction
+$response = Paytabs::transactions()->void(
+    tran_ref: 'TST240000000001',
+    cart_id: 'void-001',
+    cart_amount: 99.50,
+    cart_currency: 'AED',
+    cart_description: 'Void authorization'
+);
+```
+
+#### Working with `TransactionResponse`
+
+All transaction operations return a clean `TransactionResponse` instance with convenience methods:
+
+| Method | Return Type | Description |
+|--------|-------------|-------------|
+| `isSuccess()` | `bool` | Check if the API request was processed successfully |
+| `isAuthorized()` | `bool` | Check if the transaction was Authorized/Approved (`'A'`) |
+| `getTranRef()` | `?string` | Get the transaction reference |
+| `getMessage()` | `string` | Get the API response message |
+| `getCartId()` | `?string` | Get the cart ID associated with the transaction |
+| `getCartAmount()` | `?float` | Get the cart amount |
+| `getCartCurrency()` | `?string` | Get the cart currency |
+| `getTranType()` | `?string` | Get the transaction type (e.g. Sale, Auth, Capture, Refund, Void) |
+| `getPaymentResult()` | `?object` | Get the raw payment result object |
+| `raw()` | `ResponseDirectInterface` | Access the underlying core SDK direct response |
 
 ## Documentation
 
