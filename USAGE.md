@@ -24,6 +24,42 @@ A complete Laravel Sample App:
 
 The most common use case is creating a hosted payment page where customers are redirected to PayTabs to complete payment.
 
+You can use the high-level `PaymentService` accessible via `Paytabs::payment()`:
+
+```php
+use Paytabs\Laravel\Facades\Paytabs;
+
+$response = Paytabs::payment()->createHostedPage(
+    cart_id: 'order-001',
+    amount: 99.5,
+    currency: 'AED',
+    description: 'Order Payment',
+    customer: [
+        'name' => 'Fname Lname',
+        'email' => 'customer@example.com',
+        'phone' => '+971500000000',
+        'street' => '12345',
+        'city' => 'City',
+        'state' => 'State',
+        'country' => 'UAE',
+    ]
+);
+
+if ($response->isFailure()) {
+    echo $response->getCode() . ' - ' . $response->getMessage();
+    exit;
+}
+
+if ($response->isRedirect()) {
+    $paymentUrl = $response->getRedirectUrl();
+    // return redirect($paymentUrl);
+}
+```
+
+### Advanced Payment Page Configuration
+
+If you need more advanced configuration (like shipping details, frame options, etc.), you can build the request manually:
+
 ```php
 use Paytabs\Laravel\Facades\Paytabs;
 use Paytabs\Sdk\Enums\TranClass;
@@ -373,75 +409,91 @@ $payload
     ->buildInvoice($invoice);
 ```
 
-### Query Transaction Status
+### Transactions API (Query, Capture, Refund, Void)
+
+The SDK includes a high-level `TransactionsService` accessible via `Paytabs::transactions()`:
+
+#### Query Transaction Status
 
 Check the status of a previous transaction:
 
 ```php
-use Paytabs\Sdk\Request\Payload\PayloadsFactory;
+use Paytabs\Laravel\Facades\Paytabs;
 
+$response = Paytabs::transactions()->query('TST240000000001');
 
-$payload = PayloadsFactory::createTransactionQuery();
-$payload->buildTransactionRef('transaction_reference_here');
-
-$request = RequestsFactory::createTransactionQuery($payload);
-$ptResponse = Paytabs::submitRequest($request);
-
-if ($ptResponse->isFailure()) {
-    return back()
-        ->withErrors([
-            'message' => 'Failed: '.$ptResponse->getFailure()->message,
-        ]);
+if (! $response->isSuccess()) {
+    return back()->withErrors(['message' => 'Query failed']);
 }
 
-/** @var Completed $mapped */
-$mapped = $ptResponse->getPayloadMapped();
+if ($response->isAuthorized()) {
+    $tranRef = $response->getTranRef();
+    $statusMessage = $response->getMessage();
+}
 ```
 
-### Refund Transaction
+#### Capture Authorized Transaction
+
+Capture a previously authorized transaction:
+
+```php
+use Paytabs\Laravel\Facades\Paytabs;
+
+$response = Paytabs::transactions()->capture(
+    tran_ref: 'TST240000000001',
+    cart_id: 'order-001',
+    cart_amount: 99.50,
+    cart_currency: 'AED',
+    cart_description: 'Capture payment for order-001'
+);
+
+if ($response->isSuccess()) {
+    // Transaction captured successfully
+}
+```
+
+#### Refund Transaction
 
 Process a refund:
 
 ```php
-use Paytabs\Sdk\Request\Payload\PayloadsFactory;
+use Paytabs\Laravel\Facades\Paytabs;
 
+$response = Paytabs::transactions()->refund(
+    tran_ref: 'TST240000000001',
+    cart_id: 'refund-001',
+    cart_amount: 50.00,
+    cart_currency: 'AED',
+    cart_description: 'Partial refund for order-001'
+);
 
-$payload = PayloadsFactory::createRefund();
-$payload
-    ->buildCart('refund-001', 'AED', 11, 'Order Refund')
-    ->buildTransactionRef('tran-ref-to-refund');
-
-$request = RequestsFactory::createPaymentRequest($payload);
-$ptResponse = Paytabs::submitRequest($request);
-
-if ($ptResponse->isFailure()) {
-    return back()
-        ->withErrors([
-            'message' => 'Payment failed: '.$ptResponse->getFailure()->message,
-        ]);
-}
-
-/** @var Completed $mapped */
-$mapped = $ptResponse->getPayloadMapped();
-
-if ($mapped->isPaymentSuccessful()) {
-    $refund_data = [
-        'amount' => $mapped->tran_total,
-        'status' => $mapped->payment_result->response_status,
-        'tran_ref' => $mapped->tran_ref,
-        'tran_type' => TranType::Refund->value,
-    ];
-
+if ($response->isSuccess()) {
     return redirect()->route('orders.index')
         ->with('message', 'Order refunded successfully!');
 }
 
-$msg = 'Refund failed: '.$mapped->payment_result->response_message;
-
 return redirect()->route('orders.index')
-    ->withErrors([
-        'message' => $msg,
-    ]);
+    ->withErrors(['message' => 'Refund failed: ' . $response->getMessage()]);
+```
+
+#### Void Transaction
+
+Void an authorized transaction:
+
+```php
+use Paytabs\Laravel\Facades\Paytabs;
+
+$response = Paytabs::transactions()->void(
+    tran_ref: 'TST240000000001',
+    cart_id: 'void-001',
+    cart_amount: 99.50,
+    cart_currency: 'AED',
+    cart_description: 'Void authorization'
+);
+
+if ($response->isSuccess()) {
+    // Authorization voided successfully
+}
 ```
 
 ## Best Practices
